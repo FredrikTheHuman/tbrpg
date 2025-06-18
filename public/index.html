@@ -1,242 +1,44 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8" />
-<title>Turn‑Based Battle — Infinite Businesses, Scaling Heal & Full Gear</title>
-<style>
-  :root { --card-w: 260px; }
-  body { font-family: system-ui, sans-serif; display:flex; flex-direction:column; align-items:center; background:#f3f3f8; padding:30px; }
-  h1 { margin-bottom:1rem; }
-  .arena { display:flex; gap:4rem; margin-bottom:20px; flex-wrap:wrap; }
-  .card { background:#fff; padding:20px; border-radius:12px; box-shadow:0 4px 8px rgba(0,0,0,.1); text-align:center; width:var(--card-w); }
-  .hp-bar { height:20px; background:#e0e0e0; border-radius:10px; overflow:hidden; margin-bottom:10px; }
-  .hp { height:100%; background:#4caf50; transition:width .3s; }
-  button { padding:10px 18px; border:none; border-radius:8px; box-shadow:0 2px 4px rgba(0,0,0,.1); cursor:pointer; font-size:1rem; margin:4px; }
-  #log { max-width:calc(var(--card-w)*2 + 4rem); height:220px; overflow-y:auto; background:#fff; padding:12px; border-radius:8px; box-shadow:0 4px 8px rgba(0,0,0,.1); white-space:pre-wrap; }
-</style>
-</head>
-<body>
-  <div id="killList" style="
-     position:fixed; top:8px; left:8px;
-     background:#fff; padding:8px 12px;
-     border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,.12);
-     font-size:.9rem; line-height:1.3;">
-  <strong>Kills</strong><br>
-  <em>— none yet —</em>
-</div>
-<h1>Turn‑Based Battle</h1>
-<div class="arena">
-  <div class="card" id="playerCard">
-    <h2 id="playerName">Hero</h2>
-    <div class="hp-bar"><div class="hp" id="playerHp"></div></div>
-    <p id="playerStats"></p>
-    <p id="playerProgress"></p>
-    <p id="playerEquip"></p>
-    <p id="playerGold"></p>
-  </div>
-  <div class="card" id="enemyCard">
-    <h2 id="enemyName">Enemy</h2>
-    <div class="hp-bar"><div class="hp" id="enemyHp"></div></div>
-    <p id="enemyStats"></p>
-  </div>
-</div>
+<!doctype html>
+<meta charset="utf-8">
+<title>TBRPG – lobby test</title>
+<h1>TBRPG – lobby test</h1>
 
-<div class="controls">
-  <button id="attackBtn">Attack</button>
-  <button id="nextEnemyBtn" disabled>Next Enemy</button>
-  <button id="healBtn">Heal</button>
-  <button id="buyWeaponBtn">Buy Weapon</button>
-  <button id="buyArmorBtn">Buy Armor</button>
-  <button id="investBtn">Invest</button>
-  <button id="herbBtn">Pick Herbs</button>
-  <button id="newGameBtn" style="display:none;">New Game</button>
-</div>
+<!-- ── UI placeholders ─────────────────────────────── -->
+<label>Name: <input id="nameBox" placeholder="your name"></label>
+<button id="joinBtn">Join world</button>
 
-<pre id="log"></pre>
+<h2 id="onlineHdr" hidden>Players online:</h2>
+<ul id="onlineList"></ul>
 
+<!-- ── Socket-io handshake ──────────────────────────── -->
+<script src="/socket.io/socket.io.js"></script>
 <script>
-/****************** CONSTANTS & CONFIG ******************/
-const BASE_HEAL_COST = 5;
-const HEAL_GROWTH    = 1.25;
-const BUSINESS_BASE_COST = 1000;
-const BUSINESS_COST_INC  = 500;
-const GOLD_PER_BUSINESS  = 1; // per sec
-const HERB_COOLDOWN      = 1000;
+const sock      = io();                           // opens WebSocket
+const nameBox   = document.getElementById('nameBox');
+const joinBtn   = document.getElementById('joinBtn');
+const onlineHdr = document.getElementById('onlineHdr');
+const onlineUl  = document.getElementById('onlineList');
 
-/****************** FULL GEAR LISTS ******************/
-const weaponCSV = `
-Wooden Club        | 1   | 5
-Stone Knife        | 2   | 10
-Bronze Dagger      | 3   | 15
-Rusty Short Sword  | 4   | 22
-Iron Sword         | 5   | 30
-Stone Axe          | 6   | 45
-Reinforced Spear   | 8   | 80
-Steel Sword        | 12  | 120
-Silver Rapier      | 18  | 200
-Elven Longbow      | 22  | 300
-Dwarven Warhammer  | 28  | 350
-Obsidian Blade     | 32  | 400
-Dragonfang         | 50  | 800
-Runebound Claymore | 70  | 1200
-Phoenix Talon      | 90  | 2000
-Celestial Edge     | 120 | 5000
-Voidrender         | 200 | 20000
-Eternity's End     | 500 | 100000
-`;
+// 1. prompt → join
+joinBtn.onclick = () => {
+  const name = nameBox.value.trim();
+  if (!name) return alert('Pick a name first!');
+  sock.emit('join', { name });                    // send to server
+  joinBtn.disabled = true;
+  nameBox.disabled = true;
+};
 
-const armorCSV = `
-Cloth Tunic        | 1   | 5
-Ragged Cloak       | 2   | 10
-Padded Vest        | 2   | 15
-Studded Leather    | 3   | 25
-Leather Armor      | 3   | 30
-Reinforced Leather | 4   | 45
-Hide Jerkin        | 5   | 70
-Chain Shirt        | 6   | 90
-Chainmail          | 8   | 120
-Scale Mail         | 12  | 200
-Breastplate        | 14  | 260
-Plate Armor        | 18  | 350
-Dwarven Plate      | 22  | 500
-Mythril Aegis      | 35  | 800
-Dragonscale Mail   | 50  | 1200
-Runic Bulwark      | 70  | 2000
-Celestial Plate    | 100 | 5000
-Cosmic Exosuit     | 220 | 20000
-Eternity Shroud    | 500 | 100000
-`;
-function parseGear(csv, statKey){
-  return csv.trim()
-           .split(/\n+/)         // ← correct
-           .map(line=>{
-             const [name, stat, cost] = line.split('|').map(s=>s.trim());
-             return { name, [statKey]: +stat, cost: +cost };
-           });
-}
+// 2. receive full player list
+sock.on('playerList', list => {
+  onlineUl.innerHTML = '';                        // clear
+  list.forEach(n => {
+    const li = document.createElement('li');
+    li.textContent = n;
+    onlineUl.appendChild(li);
+  });
+  onlineHdr.hidden = list.length === 0;
+});
 
-
-const weapons = parseGear(weaponCSV, 'atk');
-const armors  = parseGear(armorCSV,  'def');
-
-/****************** STATE ******************/
-let nextWeaponIdx = 0, nextArmorIdx = 0;
-let herbReady = true;
-let businessCount = 0, passiveIncome = 0, incomeInterval = null;
-
-const basePlayer = { hpMax:100, baseAttack:12, weapon:{name:"Fists",atk:0}, armor:{name:"Clothes",def:0} };
-const player = { ...basePlayer, name:"Hero", hp:100, level:1, xp:0, xpToNext:100, gold:0 };
-
-const enemyTemplates = [
-  {name:"Rat",hp:20,attack:3,xpReward:10,goldReward:5,weight:18},
-  {name:"Green Slime",hp:25,attack:2,xpReward:30,goldReward:8,weight:22},
-  {name:"Golden Slime",hp:1000,attack:1,xpReward:500,goldReward:1000,weight:1},
-  {name:"Goblin",hp:100,attack:10,xpReward:50,goldReward:10,weight:40},
-  {name:"Orc",hp:150,attack:15,xpReward:100,goldReward:20,weight:23},
-  {name:"Troll",hp:200,attack:20,xpReward:150,goldReward:40,weight:12},
-  {name:"Dragon",hp:300,attack:28,xpReward:300,goldReward:75,weight:5},
-  {name:"The Beholder",hp:400,attack:35,xpReward:500,goldReward:150,weight:1.5},
-  {name:"Eclipse Titan",hp:600,attack:45,xpReward:800,goldReward:300,weight:0.9},
-  {name:"Zlago TH̷E̸ A̴B̸Y̷S̴S̶A̶L KING",hp:100000,attack:2000,xpReward:100000,goldReward:2000000,weight:0.04}
-];
-let enemy = {};
-let isPlayerTurn = true;
-// === kill tracking ===
-let killCounts = {};          // { "Rat": 3, "Goblin": 1, ... }
-let totalKills = {};          // lifetime, never reset
-let diedOnce   = false;       // becomes true after first defeat
-/****************** HELPERS ******************/
-const logBox = document.getElementById("log");
-const log    = t => { logBox.textContent += t + "\n"; logBox.scrollTop = logBox.scrollHeight; };
-const rand   = m => Math.floor(Math.random()*m)+1;
-const playerAtk = () => player.baseAttack + (player.level-1)*3 + player.weapon.atk;
-const healCost  = () => Math.floor(BASE_HEAL_COST * Math.pow(HEAL_GROWTH, player.level-1));
-const nextBizCost = () => BUSINESS_BASE_COST + BUSINESS_COST_INC * businessCount;
-
-function refreshKillList(){
-  const box = document.getElementById('killList');
-  const entries = Object.entries(killCounts);
-  if (!entries.length){
-    box.innerHTML = '<strong>Kills</strong><br><em>— none yet —</em>';
-    return;
-  }
-  box.innerHTML = '<strong>Kills</strong><br>' +
-    entries.map(([name, n])=>{
-      const lifetime = totalKills[name];
-      return diedOnce ? `${name}: ${n} (${lifetime})`
-                      : `${name}: ${n}`;
-    }).join('<br>');
-}
-
-
-/****************** UI ******************/
-function refreshPlayer(){
-  document.getElementById("playerHp").style.width=(player.hp/player.hpMax*100)+"%";
-  document.getElementById("playerStats").textContent=`HP: ${player.hp}/${player.hpMax} | ATK: ${playerAtk()} | DEF: ${player.armor.def}`;
-  document.getElementById("playerProgress").textContent=`Lv ${player.level} • XP ${player.xp}/${player.xpToNext}`;
-  document.getElementById("playerEquip").textContent=`Weapon: ${player.weapon.name} | Armor: ${player.armor.name}`;
-  document.getElementById("playerGold").textContent=`Gold: ${player.gold}`;
-  // Heal button
-  const hCost = healCost();
-  const healBtn = document.getElementById("healBtn");
-  healBtn.textContent = `Heal (${hCost}g)`;
-  healBtn.disabled = player.gold < hCost || player.hp === player.hpMax;
-  // Shop buttons
-  const wpBtn = document.getElementById("buyWeaponBtn");
-  if(nextWeaponIdx>=weapons.length){ wpBtn.textContent="Weapons Maxed"; wpBtn.disabled=true; }
-  else { const w=weapons[nextWeaponIdx]; wpBtn.textContent=`Buy ${w.name} (${w.cost}g)`; wpBtn.disabled = player.gold < w.cost; }
-  const arBtn = document.getElementById("buyArmorBtn");
-  if(nextArmorIdx>=armors.length){ arBtn.textContent="Armor Maxed"; arBtn.disabled=true; }
-  else { const a=armors[nextArmorIdx]; arBtn.textContent=`Buy ${a.name} (${a.cost}g)`; arBtn.disabled = player.gold < a.cost; }
-  // Invest button
-  const investBtn = document.getElementById("investBtn");
-  investBtn.textContent = `Invest (${nextBizCost()}g)`;
-  investBtn.disabled = player.gold < nextBizCost();
-  // Herb cooldown
-  document.getElementById("herbBtn").disabled = !herbReady;
-}
-function refreshEnemy(){
-  document.getElementById("enemyHp").style.width=(enemy.hp/enemy.hpMax*100)+"%";
-  document.getElementById("enemyStats").textContent=`HP: ${enemy.hp}/${enemy.hpMax} | ATK: ${enemy.attack}`;
-  document.getElementById("enemyName").textContent=enemy.name;
-}
-const updateUI = ()=>{refreshPlayer(); refreshEnemy();};
-
-/****************** GAMEPLAY ******************/
-function dealDamage(att,def){ let dmg=rand(att.attack); if(def===player) dmg=Math.max(dmg-player.armor.def,1); def.hp=Math.max(def.hp-dmg,0); log(`${att.name} hits ${def.name} for ${dmg}!`); updateUI(); }
-function levelUp(){ player.level++; player.xpToNext=Math.floor(player.xpToNext*1.5); player.hpMax+=10; player.hp=player.hpMax; log(`*** Level up! Now level ${player.level}`); }
-function grantRewards(){ player.xp+=enemy.xpReward; player.gold+=enemy.goldReward; log(`Loot: +${enemy.xpReward} XP, +${enemy.goldReward}g`); while(player.xp>=player.xpToNext){ player.xp-=player.xpToNext; levelUp(); } }
-function checkEnd(){
-  if(enemy.hp===0){killCounts[enemy.name] = (killCounts[enemy.name] || 0) + 1; totalKills [enemy.name] = (totalKills [enemy.name] || 0) + 1; refreshKillList(); document.getElementById("attackBtn").disabled=true; document.getElementById("nextEnemyBtn").disabled=false; grantRewards(); refreshPlayer(); return true; }
-  if(player.hp===0){ diedOnce = true; log("Defeat…"); document.getElementById("attackBtn").disabled=true; document.getElementById("nextEnemyBtn").disabled=true; document.getElementById("newGameBtn").style.display="inline-block"; return true; }
-  return false;
-}
-function turn(){ if(isPlayerTurn){ dealDamage({name:player.name,attack:playerAtk()},enemy); if(checkEnd()) return; } else { dealDamage(enemy,player); if(checkEnd()) return; } isPlayerTurn=!isPlayerTurn; }
-
-/****************** ENEMY ************************/
-function weightedRandom(){ const tot=enemyTemplates.reduce((s,e)=>s+e.weight,0); let r=Math.random()*tot; for(const e of enemyTemplates){ if((r-=e.weight)<0) return e; } return enemyTemplates[0]; }
-function spawnEnemy(){ enemy={...weightedRandom()}; enemy.hpMax=enemy.hp; isPlayerTurn=true; document.getElementById("attackBtn").disabled=false; document.getElementById("nextEnemyBtn").disabled=true; log(`\nA wild ${enemy.name} appears!`); refreshEnemy(); }
-
-/****************** ECONOMY/SHOP ******************/
-function buyWeapon(){ if(nextWeaponIdx>=weapons.length) return; const w=weapons[nextWeaponIdx]; if(player.gold>=w.cost){ player.gold-=w.cost; player.weapon=w; nextWeaponIdx++; log(`Bought ${w.name}`); refreshPlayer(); } }
-function buyArmor(){ if(nextArmorIdx>=armors.length) return; const a=armors[nextArmorIdx]; if(player.gold>=a.cost){ player.gold-=a.cost; player.armor=a; nextArmorIdx++; log(`Bought ${a.name}`); refreshPlayer(); } }
-function investBusiness(){ const cost=nextBizCost(); if(player.gold<cost) return; player.gold-=cost; businessCount++; passiveIncome+=GOLD_PER_BUSINESS; log(`Invested ${cost}g — passive income +${GOLD_PER_BUSINESS}g/s (total ${passiveIncome}g/s)`); if(!incomeInterval){ incomeInterval=setInterval(()=>{ player.gold+=passiveIncome; refreshPlayer(); },1000);} refreshPlayer(); }
-
-/****************** EVENT LISTENERS ******************/
-document.getElementById("attackBtn").addEventListener("click",turn);
-document.getElementById("nextEnemyBtn").addEventListener("click",spawnEnemy);
-document.getElementById("healBtn").addEventListener("click",()=>{ const c=healCost(); if(player.gold>=c && player.hp<player.hpMax){ player.gold-=c; player.hp=player.hpMax; log(`Healed for ${c}g`); refreshPlayer(); } });
-document.getElementById("buyWeaponBtn").addEventListener("click",buyWeapon);
-document.getElementById("buyArmorBtn").addEventListener("click",buyArmor);
-document.getElementById("investBtn").addEventListener("click",investBusiness);
-document.getElementById("herbBtn").addEventListener("click",()=>{ if(!herbReady) return; herbReady=false; player.gold++; log("Picked herbs (+1g)"); refreshPlayer(); setTimeout(()=>{ herbReady=true; refreshPlayer(); },HERB_COOLDOWN); });
-document.getElementById("newGameBtn").addEventListener("click",()=>{
-  Object.assign(player,{ ...basePlayer, hp:basePlayer.hpMax, level:1, xp:0, xpToNext:100, gold:0 });
-  nextWeaponIdx=0; nextArmorIdx=0; herbReady=true; businessCount=0; passiveIncome=0; if(incomeInterval){ clearInterval(incomeInterval); incomeInterval=null;} killCounts = {};refreshKillList(); 
-  document.getElementById("newGameBtn").style.display="none"; log("\n=== New Adventure ==="); spawnEnemy(); refreshPlayer(); });
-
-/****************** INIT ******************/
-spawnEnemy(); refreshPlayer(); log("Battle begins — your move!");
+// optional: show own socket id in console
+sock.on('connect', () => console.log('Connected as', sock.id));
 </script>
-</body>
-</html>
