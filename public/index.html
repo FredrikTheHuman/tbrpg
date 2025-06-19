@@ -1,108 +1,115 @@
 <!doctype html>
 <meta charset="utf-8">
 <title>TBRPG – lobby test</title>
+<style>
+  body { font-family:sans-serif; display:flex; flex-direction:column;
+         align-items:center; margin:20px; }
+  #map { display:grid; gap:2px; margin-top:16px; }
+  .tile { width:48px; height:48px; border:1px solid #888;
+          display:flex; justify-content:center; align-items:center;
+          font-size:10px; position:relative; cursor:pointer; }
+  .tile.village { background:#ffe; }
+  .tile.you     { outline:3px solid #000; }
+  .dot { width:10px; height:10px; border-radius:50%;
+         position:absolute; bottom:3px; right:3px; }
+  .dot.stack { right:auto; left:3px; }
+</style>
+
 <h1>TBRPG – lobby test</h1>
 
-<!-- ── join UI ─────────────────────────────────────── -->
 <label>Name:
   <input id="nameBox" placeholder="your name">
 </label>
 <button id="joinBtn">Join world</button>
 
-<!-- ── online-players list ─────────────────────────── -->
 <h2 id="onlineHdr" hidden>Players online:</h2>
 <ul id="onlineList"></ul>
 
-<!-- ── 3×3 map viewport ────────────────────────────── -->
-<div id="map"
-     style="display:grid;grid-template-columns:repeat(3,80px);
-            gap:4px;margin-top:1rem;"></div>
+<!-- grid map -->
+<div id="map"></div>
 
-<!-- ── movement buttons ────────────────────────────── -->
-<div id="controls" hidden style="margin-top:1rem;">
-  <button data-dir="up">↑</button><br>
-  <button data-dir="left">←</button>
-  <button data-dir="down">↓</button>
-  <button data-dir="right">→</button>
-</div>
-
-<!-- ── Socket-io client and game logic ─────────────── -->
 <script src="/socket.io/socket.io.js"></script>
 <script>
-/* ---------- element refs ---------- */
 const sock        = io();
 const nameBox     = document.getElementById('nameBox');
 const joinBtn     = document.getElementById('joinBtn');
 const onlineHdr   = document.getElementById('onlineHdr');
-const onlineUl    = document.getElementById('onlineList');
+const onlineList  = document.getElementById('onlineList');
 const mapDiv      = document.getElementById('map');
-const controlsDiv = document.getElementById('controls');
+
+let myId = null;
+let lastState = null;
 
 /* ---------- join ---------- */
-joinBtn.onclick = () => {
-  const name = nameBox.value.trim();
-  if (!name) return alert('Pick a name first!');
-  sock.emit('join', { name });
+joinBtn.addEventListener('click', () => {
+  const n = nameBox.value.trim();
+  if (!n) return alert('Pick a name first!');
+  sock.emit('join', { name: n });
   joinBtn.disabled = nameBox.disabled = true;
-  controlsDiv.hidden = false;
-};
-
-/* ---------- movement buttons ---------- */
-document.querySelectorAll('[data-dir]').forEach(btn =>
-  btn.onclick = () => sock.emit('move', btn.dataset.dir));
-
-/* ---------- player list ---------- */
-sock.on('playerList', list => {
-  onlineUl.innerHTML = '';
-  list.forEach(n => {
-    const li = document.createElement('li');
-    li.textContent = n;
-    onlineUl.appendChild(li);
-  });
-  onlineHdr.hidden = list.length === 0;
 });
 
-/* ---------- world rendering ---------- */
-let myId = null;
-sock.on('connect', () => console.log('Connected as', (myId = sock.id)));
+/* ---------- player list ---------- */
+function renderList(players) {
+  onlineList.innerHTML = '';
+  Object.values(players).forEach(p => {
+    const li = document.createElement('li');
+    li.textContent = p.name;
+    li.style.color = p.color;
+    onlineList.appendChild(li);
+  });
+  onlineHdr.hidden = onlineList.children.length === 0;
+}
 
-sock.on('worldState', ({ tiles, players }) => {
-  const me = players[myId];
-  if (!me) return;                    // haven't joined yet
+/* ---------- map ---------- */
+function drawMap(state) {
+  if (!state) return;
+  const me = state.players[myId];
+  if (!me) return;
 
-  // Build 3×3 view centred on me
+  const SIZE = 15;                // 15×15 viewport
+  const R    = Math.floor(SIZE/2);
+  mapDiv.style.gridTemplateColumns = `repeat(${SIZE},48px)`;
   mapDiv.innerHTML = '';
-  for (let dy = -1; dy <= 1; dy++) {
-    for (let dx = -1; dx <= 1; dx++) {
-      const tx = me.x + dx;
-      const ty = me.y + dy;
-      const key = `${tx},${ty}`;
-      const tile = tiles[key] ?? { type: 'unknown', cleared: false };
 
+  for (let y = me.y - R; y <= me.y + R; y++) {
+    for (let x = me.x - R; x <= me.x + R; x++) {
+      const tileData = state.tiles[`${x},${y}`] || { type:'wilderness' };
       const div = document.createElement('div');
-      div.style.cssText =
-        'width:80px;height:80px;border:1px solid #888;display:flex;' +
-        'align-items:center;justify-content:center;font-size:.8rem';
+      div.className = 'tile ' + (tileData.type === 'village' ? 'village' : '');
+      div.dataset.x = x;
+      div.dataset.y = y;
 
-      if (tx === me.x && ty === me.y) {
-        div.textContent = 'YOU';
-        div.style.background = '#ffd';
-      } else {
-        const here = Object.values(players)
-                     .filter(p => p.x === tx && p.y === ty);
-        if (here.length) {
-          div.textContent = here.map(p => p.name[0].toUpperCase()).join('');
-          div.style.background = '#def';
-        } else if (tile.cleared) {
-          div.textContent = '✓';
-          div.style.background = '#cfc';
-        } else {
-          div.textContent = '?';
-        }
-      }
+      // centre indicator
+      if (x === 0 && y === 0) div.textContent = 'village';
+
+      // players in this tile
+      const here = Object.values(state.players).filter(p => p.x === x && p.y === y);
+      here.forEach((p,i) => {
+        const dot = document.createElement('div');
+        dot.className = 'dot' + (i ? ' stack' : '');
+        dot.style.background = p.color;
+        div.appendChild(dot);
+        if (p.id === myId) div.classList.add('you');
+      });
+
+      div.onclick = () => {
+        // allow click only if adjacent
+        const dx = Math.abs(x - me.x);
+        const dy = Math.abs(y - me.y);
+        if (dx + dy === 1) sock.emit('moveTo', { x, y });
+      };
       mapDiv.appendChild(div);
     }
   }
+}
+
+/* ---------- socket events ---------- */
+sock.on('connect', () => { myId = sock.id; });
+
+sock.on('state', state => {
+  lastState = state;
+  renderList(state.players);
+  drawMap(state);
 });
 </script>
 
