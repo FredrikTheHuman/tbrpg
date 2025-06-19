@@ -1,115 +1,132 @@
 <!doctype html>
 <meta charset="utf-8">
-<title>TBRPG – lobby test</title>
+<title>TBRPG – co-op grid demo</title>
 <style>
-  body { font-family:sans-serif; display:flex; flex-direction:column;
-         align-items:center; margin:20px; }
-  #map { display:grid; gap:2px; margin-top:16px; }
-  .tile { width:48px; height:48px; border:1px solid #888;
-          display:flex; justify-content:center; align-items:center;
-          font-size:10px; position:relative; cursor:pointer; }
-  .tile.village { background:#ffe; }
-  .tile.you     { outline:3px solid #000; }
-  .dot { width:10px; height:10px; border-radius:50%;
-         position:absolute; bottom:3px; right:3px; }
-  .dot.stack { right:auto; left:3px; }
+ body{font-family:sans-serif;display:flex;flex-direction:column;align-items:center;margin:20px}
+ #map{display:grid;gap:2px;margin-top:16px}
+ .tile{width:48px;height:48px;border:1px solid #888;display:flex;justify-content:center;align-items:center;font-size:10px;position:relative;cursor:pointer}
+ .tile.wilderness{background:#fee}
+ .tile.cleared   {background:#cfc}
+ .tile.village   {background:#ffd}
+ .tile.you       {outline:3px solid #000}
+ .dot{width:10px;height:10px;border-radius:50%;position:absolute;bottom:3px;right:3px}
+ .dot.stack{right:auto;left:3px}
+ #combat{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+         background:#fff;padding:16px 24px;border:2px solid #333;border-radius:8px;
+         display:none;box-shadow:0 4px 12px rgba(0,0,0,.4)}
+ #combat h3{margin-top:0}
 </style>
 
 <h1>TBRPG – lobby test</h1>
-
-<label>Name:
-  <input id="nameBox" placeholder="your name">
-</label>
+<label>Name:<input id="nameBox" placeholder="your name"></label>
 <button id="joinBtn">Join world</button>
 
 <h2 id="onlineHdr" hidden>Players online:</h2>
 <ul id="onlineList"></ul>
 
-<!-- grid map -->
 <div id="map"></div>
+
+<!-- simple combat popup -->
+<div id="combat">
+  <h3 id="enemyName"></h3>
+  <p>HP <span id="eHp"></span>/<span id="eHpMax"></span></p>
+  <button id="attackBtn">Attack</button>
+  <button id="leaveBtn">Leave</button>
+  <p id="combatLog" style="white-space:pre-wrap;font-size:.9rem;margin:8px 0 0"></p>
+</div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
-const sock        = io();
-const nameBox     = document.getElementById('nameBox');
-const joinBtn     = document.getElementById('joinBtn');
-const onlineHdr   = document.getElementById('onlineHdr');
-const onlineList  = document.getElementById('onlineList');
-const mapDiv      = document.getElementById('map');
+const sock=io();
+const nameBox=document.getElementById('nameBox');
+const joinBtn=document.getElementById('joinBtn');
+const onlineHdr=document.getElementById('onlineHdr');
+const onlineList=document.getElementById('onlineList');
+const mapDiv=document.getElementById('map');
 
-let myId = null;
-let lastState = null;
+let myId=null; let state=null;
+const SIZE=15, R=Math.floor(SIZE/2);
 
-/* ---------- join ---------- */
-joinBtn.addEventListener('click', () => {
-  const n = nameBox.value.trim();
-  if (!n) return alert('Pick a name first!');
-  sock.emit('join', { name: n });
-  joinBtn.disabled = nameBox.disabled = true;
-});
+/* -------- join ---------- */
+joinBtn.onclick=()=>{
+  const n=nameBox.value.trim(); if(!n) return alert('Name?');
+  sock.emit('join',{name:n}); joinBtn.disabled=nameBox.disabled=true;
+};
 
-/* ---------- player list ---------- */
-function renderList(players) {
-  onlineList.innerHTML = '';
-  Object.values(players).forEach(p => {
-    const li = document.createElement('li');
-    li.textContent = p.name;
-    li.style.color = p.color;
+/* -------- ui helpers ----- */
+function renderList(){
+  onlineList.innerHTML='';
+  Object.values(state.players).forEach(p=>{
+    const li=document.createElement('li');li.textContent=p.name;li.style.color=p.color;
     onlineList.appendChild(li);
   });
-  onlineHdr.hidden = onlineList.children.length === 0;
+  onlineHdr.hidden=!onlineList.children.length;
 }
 
-/* ---------- map ---------- */
-function drawMap(state) {
-  if (!state) return;
-  const me = state.players[myId];
-  if (!me) return;
-
-  const SIZE = 15;                // 15×15 viewport
-  const R    = Math.floor(SIZE/2);
-  mapDiv.style.gridTemplateColumns = `repeat(${SIZE},48px)`;
-  mapDiv.innerHTML = '';
-
-  for (let y = me.y - R; y <= me.y + R; y++) {
-    for (let x = me.x - R; x <= me.x + R; x++) {
-      const tileData = state.tiles[`${x},${y}`] || { type:'wilderness' };
-      const div = document.createElement('div');
-      div.className = 'tile ' + (tileData.type === 'village' ? 'village' : '');
-      div.dataset.x = x;
-      div.dataset.y = y;
-
-      // centre indicator
-      if (x === 0 && y === 0) div.textContent = 'village';
-
-      // players in this tile
-      const here = Object.values(state.players).filter(p => p.x === x && p.y === y);
-      here.forEach((p,i) => {
-        const dot = document.createElement('div');
-        dot.className = 'dot' + (i ? ' stack' : '');
-        dot.style.background = p.color;
-        div.appendChild(dot);
-        if (p.id === myId) div.classList.add('you');
-      });
-
-      div.onclick = () => {
-        // allow click only if adjacent
-        const dx = Math.abs(x - me.x);
-        const dy = Math.abs(y - me.y);
-        if (dx + dy === 1) sock.emit('moveTo', { x, y });
-      };
+function drawMap(){
+  const me=state.players[myId]; if(!me) return;
+  mapDiv.style.gridTemplateColumns=`repeat(${SIZE},48px)`; mapDiv.innerHTML='';
+  for(let y=me.y-R;y<=me.y+R;y++){
+    for(let x=me.x-R;x<=me.x+R;x++){
+      const k=`${x},${y}`; const tile=state.tiles[k]||{type:'wilderness',monstersRemaining:0};
+      const div=document.createElement('div');
+      div.className='tile '+tile.type+(tile.cleared?' cleared':' wilderness');
+      if(x===0&&y===0) div.textContent='village';
+      if(!tile.cleared && tile.monstersRemaining) div.title=`${tile.monstersRemaining} monsters`;
+      div.dataset.x=x;div.dataset.y=y;
+      const ps=Object.values(state.players).filter(p=>p.x===x&&p.y===y);
+      ps.forEach((p,i)=>{const d=document.createElement('div');d.className='dot'+(i?' stack':'');d.style.background=p.color;div.appendChild(d);if(p.id===myId)div.classList.add('you')})
+      div.onclick=()=>{if(Math.abs(x-me.x)+Math.abs(y-me.y)===1)sock.emit('moveTo',{x,y});
+                       else if(x===me.x&&y===me.y && tile.monstersRemaining) openFight(x,y);}
       mapDiv.appendChild(div);
     }
   }
 }
 
-/* ---------- socket events ---------- */
-sock.on('connect', () => { myId = sock.id; });
+sock.on('state',s=>{state=s;renderList();drawMap();});
+sock.on('connect',()=>{myId=sock.id});
 
-sock.on('state', state => {
-  lastState = state;
-  renderList(state.players);
-  drawMap(state);
+/* ---------- combat popup ---------- */
+const popup=document.getElementById('combat');
+const eName=document.getElementById('enemyName');
+const eHp=document.getElementById('eHp');
+const eHpMax=document.getElementById('eHpMax');
+const logBox=document.getElementById('combatLog');
+
+let currentTile=null, enemy=null;
+
+function openFight(x,y){
+  currentTile={x,y};
+  sock.emit('requestEnemy',{x,y});
+}
+sock.on('enemyData',m=>{
+  enemy=JSON.parse(JSON.stringify(m));
+  eName.textContent=enemy.name;
+  eHp.textContent=enemy.hp;
+  eHpMax.textContent=enemy.hp;
+  logBox.textContent='';
+  popup.style.display='block';
 });
+
+document.getElementById('attackBtn').onclick=()=>{
+  if(!enemy)return;
+  // simple player stats
+  const pAtk=10, pHpMax=100;
+  // player turn
+  const dmg=Math.floor(Math.random()*pAtk)+1;
+  enemy.hp=Math.max(enemy.hp-dmg,0);
+  logBox.textContent+=`You hit for ${dmg}\n`;
+  if(enemy.hp===0){ win(); return;}
+  // enemy turn
+  const edmg=Math.floor(Math.random()*enemy.atk)+1;
+  logBox.textContent+=`${enemy.name} hits for ${edmg}\n`;
+  eHp.textContent=enemy.hp;
+};
+function win(){
+  logBox.textContent+=`*** Defeated ${enemy.name}!\n`;
+  sock.emit('enemyDefeated',currentTile);
+  setTimeout(()=>{popup.style.display='none';enemy=null;},1000);
+}
+document.getElementById('leaveBtn').onclick=()=>{popup.style.display='none';enemy=null;}
 </script>
 
