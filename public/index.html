@@ -3,34 +3,57 @@
 <title>TBRPG – lobby test</title>
 <h1>TBRPG – lobby test</h1>
 
-<!-- ── UI placeholders ─────────────────────────────── -->
-<label>Name: <input id="nameBox" placeholder="your name"></label>
+<!-- ── join UI ─────────────────────────────────────── -->
+<label>Name:
+  <input id="nameBox" placeholder="your name">
+</label>
 <button id="joinBtn">Join world</button>
 
+<!-- ── online-players list ─────────────────────────── -->
 <h2 id="onlineHdr" hidden>Players online:</h2>
 <ul id="onlineList"></ul>
 
-<!-- ── Socket-io handshake ──────────────────────────── -->
+<!-- ── 3×3 map viewport ────────────────────────────── -->
+<div id="map"
+     style="display:grid;grid-template-columns:repeat(3,80px);
+            gap:4px;margin-top:1rem;"></div>
+
+<!-- ── movement buttons ────────────────────────────── -->
+<div id="controls" hidden style="margin-top:1rem;">
+  <button data-dir="up">↑</button><br>
+  <button data-dir="left">←</button>
+  <button data-dir="down">↓</button>
+  <button data-dir="right">→</button>
+</div>
+
+<!-- ── Socket-io client and game logic ─────────────── -->
 <script src="/socket.io/socket.io.js"></script>
 <script>
-const sock      = io();                           // opens WebSocket
-const nameBox   = document.getElementById('nameBox');
-const joinBtn   = document.getElementById('joinBtn');
-const onlineHdr = document.getElementById('onlineHdr');
-const onlineUl  = document.getElementById('onlineList');
+/* ---------- element refs ---------- */
+const sock        = io();
+const nameBox     = document.getElementById('nameBox');
+const joinBtn     = document.getElementById('joinBtn');
+const onlineHdr   = document.getElementById('onlineHdr');
+const onlineUl    = document.getElementById('onlineList');
+const mapDiv      = document.getElementById('map');
+const controlsDiv = document.getElementById('controls');
 
-// 1. prompt → join
+/* ---------- join ---------- */
 joinBtn.onclick = () => {
   const name = nameBox.value.trim();
   if (!name) return alert('Pick a name first!');
-  sock.emit('join', { name });                    // send to server
-  joinBtn.disabled = true;
-  nameBox.disabled = true;
+  sock.emit('join', { name });
+  joinBtn.disabled = nameBox.disabled = true;
+  controlsDiv.hidden = false;
 };
 
-// 2. receive full player list
+/* ---------- movement buttons ---------- */
+document.querySelectorAll('[data-dir]').forEach(btn =>
+  btn.onclick = () => sock.emit('move', btn.dataset.dir));
+
+/* ---------- player list ---------- */
 sock.on('playerList', list => {
-  onlineUl.innerHTML = '';                        // clear
+  onlineUl.innerHTML = '';
   list.forEach(n => {
     const li = document.createElement('li');
     li.textContent = n;
@@ -39,6 +62,47 @@ sock.on('playerList', list => {
   onlineHdr.hidden = list.length === 0;
 });
 
-// optional: show own socket id in console
-sock.on('connect', () => console.log('Connected as', sock.id));
+/* ---------- world rendering ---------- */
+let myId = null;
+sock.on('connect', () => console.log('Connected as', (myId = sock.id)));
+
+sock.on('worldState', ({ tiles, players }) => {
+  const me = players[myId];
+  if (!me) return;                    // haven't joined yet
+
+  // Build 3×3 view centred on me
+  mapDiv.innerHTML = '';
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      const tx = me.x + dx;
+      const ty = me.y + dy;
+      const key = `${tx},${ty}`;
+      const tile = tiles[key] ?? { type: 'unknown', cleared: false };
+
+      const div = document.createElement('div');
+      div.style.cssText =
+        'width:80px;height:80px;border:1px solid #888;display:flex;' +
+        'align-items:center;justify-content:center;font-size:.8rem';
+
+      if (tx === me.x && ty === me.y) {
+        div.textContent = 'YOU';
+        div.style.background = '#ffd';
+      } else {
+        const here = Object.values(players)
+                     .filter(p => p.x === tx && p.y === ty);
+        if (here.length) {
+          div.textContent = here.map(p => p.name[0].toUpperCase()).join('');
+          div.style.background = '#def';
+        } else if (tile.cleared) {
+          div.textContent = '✓';
+          div.style.background = '#cfc';
+        } else {
+          div.textContent = '?';
+        }
+      }
+      mapDiv.appendChild(div);
+    }
+  }
+});
 </script>
+
