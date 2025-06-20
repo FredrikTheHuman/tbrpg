@@ -2,68 +2,56 @@
 <meta charset="utf-8">
 <title>TBRPG – co-op demo</title>
 <style>
-  :root{--tile:48px}
-  body{font-family:sans-serif;margin:0;display:flex;flex-direction:column;
+ :root{--tile:48px}
+ body{font-family:sans-serif;margin:0;display:flex;flex-direction:column;
        align-items:center;background:#f3f3f8}
-  h1{margin:16px 0}
-
-  /* = map view = */
-  #mapView{display:flex;gap:24px}
-  #summary{min-width:180px}
-  #map      {display:grid;gap:2px}
-  .tile     {width:var(--tile);height:var(--tile);border:1px solid #888;
-             display:flex;justify-content:center;align-items:center;
-             font-size:10px;position:relative;cursor:pointer}
-  .wilderness{background:#fee}
-  .cleared   {background:#cfc}
-  .village   {background:#ffd}
-  .you       {outline:3px solid #000}
-  .dot{width:10px;height:10px;border-radius:50%;position:absolute;
-       bottom:3px;right:3px}
-  .dot.stack{right:auto;left:3px}
-
-  /* = battle view = */
-  #battleView{display:none;flex-direction:column;align-items:center;width:100%}
-  #arena{display:flex;gap:40px;margin-top:24px}
-  .card{background:#fff;padding:20px;border-radius:12px;
-        box-shadow:0 4px 8px rgba(0,0,0,.1);text-align:center;width:260px}
-  .hpbar{height:18px;background:#e0e0e0;border-radius:9px;overflow:hidden}
-  .hpbar>.fill{height:100%;background:#4caf50;transition:width .3s}
-  #controls button{margin:4px;padding:8px 16px;border:0;border-radius:8px;
-                   cursor:pointer;box-shadow:0 2px 4px rgba(0,0,0,.12)}
-  #log{width:540px;height:180px;margin-top:8px;resize:none;
-       overflow:auto;font-family:monospace;font-size:12px}
-
-  button[disabled]{opacity:.4;cursor:not-allowed}
+ h1{margin:16px 0}
+ #mapView{display:none;gap:24px}
+ #summary{min-width:190px}
+ #map{display:grid;gap:2px}
+ .tile{width:var(--tile);height:var(--tile);border:1px solid #888;
+       display:flex;justify-content:center;align-items:center;font-size:10px;
+       position:relative;cursor:pointer}
+ .wilderness{background:#fee} .cleared{background:#cfc} .village{background:#ffd}
+ .you{outline:3px solid #000}
+ .dot{width:10px;height:10px;border-radius:50%;position:absolute;bottom:3px;right:3px}
+ .dot.stack{right:auto;left:3px}
+ /* battle */
+ #battleView{display:none;flex-direction:column;align-items:center;width:100%}
+ #arena{display:flex;gap:40px;margin-top:20px}
+ .card{background:#fff;padding:20px 26px;border-radius:12px;box-shadow:0 4px 8px rgba(0,0,0,.1);text-align:center;width:260px}
+ .bar{height:18px;background:#e0e0e0;border-radius:9px;overflow:hidden;margin-top:6px}
+ .bar>.fill{height:100%;background:#4caf50}
+ #controls button{margin:4px 6px;padding:8px 16px;border:0;border-radius:8px;cursor:pointer;box-shadow:0 2px 4px rgba(0,0,0,.12)}
+ button[disabled]{opacity:.4;cursor:not-allowed}
+ #log{width:540px;height:180px;margin-top:8px;resize:none;overflow:auto;
+      font-family:monospace;font-size:12px;border:1px solid #aaa;border-radius:4px}
 </style>
 
 <h1>TBRPG – lobby test</h1>
 <label>Name:<input id="nameBox" placeholder="your name"></label>
 <button id="joinBtn">Join world</button>
 
-<!-- ─────────── MAP VIEW ─────────── -->
-<div id="mapView" style="display:none">
+<!-- ── MAP VIEW ───────────────────────────────── -->
+<div id="mapView">
   <div id="summary">
-    <h3>Player</h3>
-    <div id="sumBox">—</div>
-    <h3>Players online</h3>
-    <ul id="onlineList"></ul>
+    <h3>You</h3><div id="sumBox">—</div>
+    <h3>Players online</h3><ul id="onlineList"></ul>
   </div>
-
   <div id="map"></div>
 </div>
 
-<!-- ─────────── BATTLE VIEW ───────── -->
+<!-- ── BATTLE VIEW ────────────────────────────── -->
 <div id="battleView">
   <div id="arena">
     <div class="card">
       <h2 id="pName">Hero</h2>
-      <div class="hpbar"><div id="pHp" class="fill"></div></div>
+      <div class="bar"><div id="pHp" class="fill"></div></div>
       <p id="pStats"></p>
     </div>
     <div class="card">
       <h2 id="eName">Enemy</h2>
-      <div class="hpbar"><div id="eHp" class="fill"></div></div>
+      <div class="bar"><div id="eHp" class="fill"></div></div>
       <p id="eStats"></p>
     </div>
   </div>
@@ -78,28 +66,42 @@
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
-/* ---------- Socket + state ---------- */
+/* ========== Socket & global state ========== */
 const sock=io();
-let myId=null, state=null;
+let myId=null,state=null;
+
+/* ---------- player local stats ---------- */
+const meStats={ level:1,xp:0,gold:0,
+  get hpMax(){return 100+10*(this.level-1)},
+  get atk  (){return 10+ 2*(this.level-1)},
+  hp:100
+};
+function gain(xp,gold){
+  meStats.xp+=xp; meStats.gold+=gold;
+  while(meStats.xp>=meStats.level*25){
+    meStats.xp-=meStats.level*25; meStats.level++;
+    meStats.hp=meStats.hpMax;
+    addLog(`*** Level up! Now Lv ${meStats.level}\n`);
+  }
+}
 
 /* ---------- DOM refs ---------- */
-// map view
-const mapView   =document.getElementById('mapView');
-const mapDiv    =document.getElementById('map');
-const sumBox    =document.getElementById('sumBox');
-const onlineUl  =document.getElementById('onlineList');
-// battle view
+const mapView=document.getElementById('mapView');
+const mapDiv=document.getElementById('map');
+const sumBox=document.getElementById('sumBox');
+const onlineUl=document.getElementById('onlineList');
 const battleView=document.getElementById('battleView');
 const pName=document.getElementById('pName');
-const pHpFill=document.getElementById('pHp');
+const pHp=document.getElementById('pHp');
 const pStats=document.getElementById('pStats');
 const eName=document.getElementById('eName');
-const eHpFill=document.getElementById('eHp');
+const eHp=document.getElementById('eHp');
 const eStats=document.getElementById('eStats');
-const logBox=document.getElementById('log');
 const attackBtn=document.getElementById('attackBtn');
-const nextBtn  =document.getElementById('nextBtn');
-const leaveBtn =document.getElementById('leaveBtn');
+const nextBtn=document.getElementById('nextBtn');
+const leaveBtn=document.getElementById('leaveBtn');
+const logBox=document.getElementById('log');
+function addLog(t){logBox.value+=t;logBox.scrollTop=logBox.scrollHeight;}
 
 /* ---------- join ---------- */
 document.getElementById('joinBtn').onclick=()=>{
@@ -111,126 +113,97 @@ document.getElementById('joinBtn').onclick=()=>{
   mapView.style.display='flex';
 };
 
-/* ---------- map rendering ---------- */
+/* ---------- map drawing ---------- */
 const SIZE=15,R=Math.floor(SIZE/2);
-function renderSummary(){
-  const me=state.players[myId];
+function refreshSidebar(){
   sumBox.innerHTML=
-    `Name: <b>${me.name}</b><br>
-     Pos : (${me.x}&nbsp;${me.y})<br>
-     HP  : 100<br>
-     ATK : 10<br>
-     Gold: 0`;
+   `HP <b>${meStats.hp}</b> / ${meStats.hpMax}<br>
+    ATK <b>${meStats.atk}</b><br>
+    Gold <b>${meStats.gold}</b><br>
+    Lv <b>${meStats.level}</b> XP ${meStats.xp}/${meStats.level*25}`;
   onlineUl.innerHTML='';
   Object.values(state.players).forEach(p=>{
-    const li=document.createElement('li');
-    li.textContent=p.name;
-    li.style.color=p.color;
+    const li=document.createElement('li');li.textContent=p.name;li.style.color=p.color;
     onlineUl.appendChild(li);
   });
 }
-
 function drawMap(){
   const me=state.players[myId]; if(!me)return;
   mapDiv.style.gridTemplateColumns=`repeat(${SIZE},var(--tile))`;
   mapDiv.innerHTML='';
   for(let y=me.y-R;y<=me.y+R;y++){
     for(let x=me.x-R;x<=me.x+R;x++){
-      const k=`${x},${y}`;
-      const tile=state.tiles[k]||{type:'wilderness',monstersRemaining:0};
-      const div=document.createElement('div');
-      div.className='tile '+tile.type+(tile.cleared?' cleared':' wilderness');
-      if(x===0&&y===0)div.textContent='village';
-      div.dataset.x=x;div.dataset.y=y;
-
-      const here=Object.values(state.players).filter(p=>p.x===x&&p.y===y);
-      here.forEach((p,i)=>{
-        const d=document.createElement('div');
-        d.className='dot'+(i?' stack':'');d.style.background=p.color;
-        div.appendChild(d);
-        if(p.id===myId)div.classList.add('you');
-      });
-
-      if(tile.monstersRemaining&&!tile.cleared&&x===me.x&&y===me.y)
-        div.title=`${tile.monstersRemaining} monsters`;
-
-      div.onclick=()=>{
+      const k=`${x},${y}`;const t=state.tiles[k]||{type:'wilderness',monstersRemaining:0};
+      const d=document.createElement('div');
+      d.className=`tile ${t.type}${t.cleared?' cleared':' wilderness'}`;
+      if(x===0&&y===0)d.textContent='village';
+      const ps=Object.values(state.players).filter(p=>p.x===x&&p.y===y);
+      ps.forEach((p,i)=>{const dot=document.createElement('div');dot.className='dot'+(i?' stack':'');dot.style.background=p.color;d.appendChild(dot);if(p.id===myId)d.classList.add('you')});
+      if(t.monstersRemaining&&!t.cleared&&x===me.x&&y===me.y)
+        d.title=`${t.monstersRemaining} monsters`;
+      d.onclick=()=>{
         const adj=Math.abs(x-me.x)+Math.abs(y-me.y);
         if(adj===1) sock.emit('moveTo',{x,y});
-        else if(x===me.x&&y===me.y&&tile.monstersRemaining)
-          startBattle(x,y,tile.monstersRemaining);
+        else if(x===me.x&&y===me.y&&t.monstersRemaining) startBattle(x,y,t.monstersRemaining);
       };
-      mapDiv.appendChild(div);
+      mapDiv.appendChild(d);
     }
   }
 }
 
 /* ---------- battle ---------- */
-let tileX,tileY,monstersLeft,enemy;   // local battle state
-
+let tileX,tileY,monstersLeft,enemy;
 function startBattle(x,y,count){
-  tileX=x; tileY=y; monstersLeft=count;
-  battleView.style.display='flex';
-  mapView.style.display='none';
-  nextBtn.disabled=leaveBtn.disabled=true;
-  logBox.value='';                         // clear log
-  getEnemy();
+  tileX=x;tileY=y;monstersLeft=count;logBox.value='';
+  mapView.style.display='none';battleView.style.display='flex';
+  nextBtn.disabled=leaveBtn.disabled=true; attackBtn.disabled=true;
+  pName.textContent=state.players[myId].name;
+  updateHeroBar();
+  sock.emit('requestEnemy',{x,y});
 }
-function getEnemy(){
-  sock.emit('requestEnemy',{x:tileX,y:tileY});
+function updateHeroBar(){
+  pHp.style.width=Math.round(meStats.hp/meStats.hpMax*100)+'%';
+  pStats.textContent=`HP ${meStats.hp}/${meStats.hpMax} | ATK ${meStats.atk}`;
 }
 sock.on('enemyData',e=>{
-  enemy=e;
-  pName.textContent=state.players[myId].name;
-  pHpFill.style.width='100%';
-  pStats.textContent='HP 100 | ATK 10';
+  enemy={...e,maxHp:e.hp};
   eName.textContent=enemy.name;
-  eHpFill.style.width='100%';
+  eHp.style.width='100%';
   eStats.textContent=`HP ${enemy.hp} | ATK ${enemy.atk}`;
-  logBox.value+=`A ${enemy.name} appears!\n`;
+  addLog(`A ${enemy.name} appears!\n`);
   attackBtn.disabled=false;
 });
-
 attackBtn.onclick=()=>{
-  if(!enemy)return;
-  /* player swing (fixed stats for demo) */
-  const pdmg=Math.floor(Math.random()*10)+5;
+  /* player hit */
+  const pdmg=Math.floor(Math.random()*meStats.atk)+1;
   enemy.hp=Math.max(enemy.hp-pdmg,0);
-  eHpFill.style.width=Math.round(enemy.hp/enemy.hpMax*100)+'%';
-  logBox.value+=`You hit for ${pdmg}\n`;
-  scrollLog();
-  if(enemy.hp===0){ monsterDown(); return;}
-  /* enemy swing */
+  eHp.style.width=Math.round(enemy.hp/enemy.maxHp*100)+'%';
+  addLog(`You hit for ${pdmg}\n`);
+  if(enemy.hp===0){victory();return;}
+  /* enemy hit */
   const edmg=Math.floor(Math.random()*enemy.atk)+1;
-  logBox.value+=`${enemy.name} hits for ${edmg}\n`;
-  scrollLog();
+  meStats.hp=Math.max(meStats.hp-edmg,0);
+  updateHeroBar();
+  addLog(`${enemy.name} hits for ${edmg}\n`);
+  if(meStats.hp===0){addLog('*** You were defeated! Respawning…\n');sock.emit('respawn');meStats.hp=meStats.hpMax;endBattle();return;}
 };
-
-function monsterDown(){
+function victory(){
   attackBtn.disabled=true;
-  logBox.value+=`*** Defeated ${enemy.name}!\n`;
-  scrollLog();
+  addLog(`*** Defeated ${enemy.name}! (+${enemy.xp} XP, +${enemy.gold}g)\n`);
+  gain(enemy.xp,enemy.gold); refreshSidebar();
   sock.emit('enemyDefeated',{x:tileX,y:tileY});
   monstersLeft--;
-  if(monstersLeft>0){
-    nextBtn.disabled=false;
-  }else{
-    leaveBtn.disabled=false;
-  }
+  if(monstersLeft>0){nextBtn.disabled=false;leaveBtn.disabled=false;}
+  else {leaveBtn.disabled=false;}
 }
-
-nextBtn.onclick=()=>{nextBtn.disabled=true; getEnemy();}
-leaveBtn.onclick=()=>{endBattle();}
-
+nextBtn.onclick=()=>{nextBtn.disabled=true;attackBtn.disabled=true;sock.emit('requestEnemy',{x:tileX,y:tileY});};
+leaveBtn.onclick=endBattle;
 function endBattle(){
-  battleView.style.display='none';
-  mapView.style.display='flex';
+  battleView.style.display='none';mapView.style.display='flex';
 }
 
-function scrollLog(){logBox.scrollTop=logBox.scrollHeight;}
-
-/* ---------- socket state ---------- */
-sock.on('state',s=>{state=s; if(myId)renderSummary(); if(myId)drawMap();});
+/* ---------- socket updates ---------- */
+sock.on('state',s=>{state=s;if(myId){refreshSidebar();drawMap();}});
 sock.on('connect',()=>{myId=sock.id});
 </script>
 
