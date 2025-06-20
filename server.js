@@ -106,6 +106,12 @@ io.on('connection', sock=>{
     if (tile.monstersRemaining === 0) tile.cleared = true;
     sendFullState();
   });
+  
+  sock.on('respawn', ()=>{
+    const p = players.get(sock.id);
+    if (p) { p.x = 0; p.y = 0; }
+    sendFullState();
+  });
 
   sock.on('disconnect', ()=>{
     players.delete(sock.id);

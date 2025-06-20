@@ -1,132 +1,236 @@
 <!doctype html>
 <meta charset="utf-8">
-<title>TBRPG – co-op grid demo</title>
+<title>TBRPG – co-op demo</title>
 <style>
- body{font-family:sans-serif;display:flex;flex-direction:column;align-items:center;margin:20px}
- #map{display:grid;gap:2px;margin-top:16px}
- .tile{width:48px;height:48px;border:1px solid #888;display:flex;justify-content:center;align-items:center;font-size:10px;position:relative;cursor:pointer}
- .tile.wilderness{background:#fee}
- .tile.cleared   {background:#cfc}
- .tile.village   {background:#ffd}
- .tile.you       {outline:3px solid #000}
- .dot{width:10px;height:10px;border-radius:50%;position:absolute;bottom:3px;right:3px}
- .dot.stack{right:auto;left:3px}
- #combat{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
-         background:#fff;padding:16px 24px;border:2px solid #333;border-radius:8px;
-         display:none;box-shadow:0 4px 12px rgba(0,0,0,.4)}
- #combat h3{margin-top:0}
+  :root{--tile:48px}
+  body{font-family:sans-serif;margin:0;display:flex;flex-direction:column;
+       align-items:center;background:#f3f3f8}
+  h1{margin:16px 0}
+
+  /* = map view = */
+  #mapView{display:flex;gap:24px}
+  #summary{min-width:180px}
+  #map      {display:grid;gap:2px}
+  .tile     {width:var(--tile);height:var(--tile);border:1px solid #888;
+             display:flex;justify-content:center;align-items:center;
+             font-size:10px;position:relative;cursor:pointer}
+  .wilderness{background:#fee}
+  .cleared   {background:#cfc}
+  .village   {background:#ffd}
+  .you       {outline:3px solid #000}
+  .dot{width:10px;height:10px;border-radius:50%;position:absolute;
+       bottom:3px;right:3px}
+  .dot.stack{right:auto;left:3px}
+
+  /* = battle view = */
+  #battleView{display:none;flex-direction:column;align-items:center;width:100%}
+  #arena{display:flex;gap:40px;margin-top:24px}
+  .card{background:#fff;padding:20px;border-radius:12px;
+        box-shadow:0 4px 8px rgba(0,0,0,.1);text-align:center;width:260px}
+  .hpbar{height:18px;background:#e0e0e0;border-radius:9px;overflow:hidden}
+  .hpbar>.fill{height:100%;background:#4caf50;transition:width .3s}
+  #controls button{margin:4px;padding:8px 16px;border:0;border-radius:8px;
+                   cursor:pointer;box-shadow:0 2px 4px rgba(0,0,0,.12)}
+  #log{width:540px;height:180px;margin-top:8px;resize:none;
+       overflow:auto;font-family:monospace;font-size:12px}
+
+  button[disabled]{opacity:.4;cursor:not-allowed}
 </style>
 
 <h1>TBRPG – lobby test</h1>
 <label>Name:<input id="nameBox" placeholder="your name"></label>
 <button id="joinBtn">Join world</button>
 
-<h2 id="onlineHdr" hidden>Players online:</h2>
-<ul id="onlineList"></ul>
+<!-- ─────────── MAP VIEW ─────────── -->
+<div id="mapView" style="display:none">
+  <div id="summary">
+    <h3>Player</h3>
+    <div id="sumBox">—</div>
+    <h3>Players online</h3>
+    <ul id="onlineList"></ul>
+  </div>
 
-<div id="map"></div>
+  <div id="map"></div>
+</div>
 
-<!-- simple combat popup -->
-<div id="combat">
-  <h3 id="enemyName"></h3>
-  <p>HP <span id="eHp"></span>/<span id="eHpMax"></span></p>
-  <button id="attackBtn">Attack</button>
-  <button id="leaveBtn">Leave</button>
-  <p id="combatLog" style="white-space:pre-wrap;font-size:.9rem;margin:8px 0 0"></p>
+<!-- ─────────── BATTLE VIEW ───────── -->
+<div id="battleView">
+  <div id="arena">
+    <div class="card">
+      <h2 id="pName">Hero</h2>
+      <div class="hpbar"><div id="pHp" class="fill"></div></div>
+      <p id="pStats"></p>
+    </div>
+    <div class="card">
+      <h2 id="eName">Enemy</h2>
+      <div class="hpbar"><div id="eHp" class="fill"></div></div>
+      <p id="eStats"></p>
+    </div>
+  </div>
+
+  <div id="controls">
+    <button id="attackBtn">Attack</button>
+    <button id="nextBtn"  disabled>Next Enemy</button>
+    <button id="leaveBtn" disabled>Leave</button>
+  </div>
+  <textarea id="log" readonly></textarea>
 </div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
+/* ---------- Socket + state ---------- */
 const sock=io();
-const nameBox=document.getElementById('nameBox');
-const joinBtn=document.getElementById('joinBtn');
-const onlineHdr=document.getElementById('onlineHdr');
-const onlineList=document.getElementById('onlineList');
-const mapDiv=document.getElementById('map');
+let myId=null, state=null;
 
-let myId=null; let state=null;
-const SIZE=15, R=Math.floor(SIZE/2);
+/* ---------- DOM refs ---------- */
+// map view
+const mapView   =document.getElementById('mapView');
+const mapDiv    =document.getElementById('map');
+const sumBox    =document.getElementById('sumBox');
+const onlineUl  =document.getElementById('onlineList');
+// battle view
+const battleView=document.getElementById('battleView');
+const pName=document.getElementById('pName');
+const pHpFill=document.getElementById('pHp');
+const pStats=document.getElementById('pStats');
+const eName=document.getElementById('eName');
+const eHpFill=document.getElementById('eHp');
+const eStats=document.getElementById('eStats');
+const logBox=document.getElementById('log');
+const attackBtn=document.getElementById('attackBtn');
+const nextBtn  =document.getElementById('nextBtn');
+const leaveBtn =document.getElementById('leaveBtn');
 
-/* -------- join ---------- */
-joinBtn.onclick=()=>{
-  const n=nameBox.value.trim(); if(!n) return alert('Name?');
-  sock.emit('join',{name:n}); joinBtn.disabled=nameBox.disabled=true;
+/* ---------- join ---------- */
+document.getElementById('joinBtn').onclick=()=>{
+  const n=document.getElementById('nameBox').value.trim();
+  if(!n)return alert('Pick a name!');
+  sock.emit('join',{name:n});
+  document.getElementById('joinBtn').disabled=
+  document.getElementById('nameBox').disabled=true;
+  mapView.style.display='flex';
 };
 
-/* -------- ui helpers ----- */
-function renderList(){
-  onlineList.innerHTML='';
+/* ---------- map rendering ---------- */
+const SIZE=15,R=Math.floor(SIZE/2);
+function renderSummary(){
+  const me=state.players[myId];
+  sumBox.innerHTML=
+    `Name: <b>${me.name}</b><br>
+     Pos : (${me.x}&nbsp;${me.y})<br>
+     HP  : 100<br>
+     ATK : 10<br>
+     Gold: 0`;
+  onlineUl.innerHTML='';
   Object.values(state.players).forEach(p=>{
-    const li=document.createElement('li');li.textContent=p.name;li.style.color=p.color;
-    onlineList.appendChild(li);
+    const li=document.createElement('li');
+    li.textContent=p.name;
+    li.style.color=p.color;
+    onlineUl.appendChild(li);
   });
-  onlineHdr.hidden=!onlineList.children.length;
 }
 
 function drawMap(){
-  const me=state.players[myId]; if(!me) return;
-  mapDiv.style.gridTemplateColumns=`repeat(${SIZE},48px)`; mapDiv.innerHTML='';
+  const me=state.players[myId]; if(!me)return;
+  mapDiv.style.gridTemplateColumns=`repeat(${SIZE},var(--tile))`;
+  mapDiv.innerHTML='';
   for(let y=me.y-R;y<=me.y+R;y++){
     for(let x=me.x-R;x<=me.x+R;x++){
-      const k=`${x},${y}`; const tile=state.tiles[k]||{type:'wilderness',monstersRemaining:0};
+      const k=`${x},${y}`;
+      const tile=state.tiles[k]||{type:'wilderness',monstersRemaining:0};
       const div=document.createElement('div');
       div.className='tile '+tile.type+(tile.cleared?' cleared':' wilderness');
-      if(x===0&&y===0) div.textContent='village';
-      if(!tile.cleared && tile.monstersRemaining) div.title=`${tile.monstersRemaining} monsters`;
+      if(x===0&&y===0)div.textContent='village';
       div.dataset.x=x;div.dataset.y=y;
-      const ps=Object.values(state.players).filter(p=>p.x===x&&p.y===y);
-      ps.forEach((p,i)=>{const d=document.createElement('div');d.className='dot'+(i?' stack':'');d.style.background=p.color;div.appendChild(d);if(p.id===myId)div.classList.add('you')})
-      div.onclick=()=>{if(Math.abs(x-me.x)+Math.abs(y-me.y)===1)sock.emit('moveTo',{x,y});
-                       else if(x===me.x&&y===me.y && tile.monstersRemaining) openFight(x,y);}
+
+      const here=Object.values(state.players).filter(p=>p.x===x&&p.y===y);
+      here.forEach((p,i)=>{
+        const d=document.createElement('div');
+        d.className='dot'+(i?' stack':'');d.style.background=p.color;
+        div.appendChild(d);
+        if(p.id===myId)div.classList.add('you');
+      });
+
+      if(tile.monstersRemaining&&!tile.cleared&&x===me.x&&y===me.y)
+        div.title=`${tile.monstersRemaining} monsters`;
+
+      div.onclick=()=>{
+        const adj=Math.abs(x-me.x)+Math.abs(y-me.y);
+        if(adj===1) sock.emit('moveTo',{x,y});
+        else if(x===me.x&&y===me.y&&tile.monstersRemaining)
+          startBattle(x,y,tile.monstersRemaining);
+      };
       mapDiv.appendChild(div);
     }
   }
 }
 
-sock.on('state',s=>{state=s;renderList();drawMap();});
-sock.on('connect',()=>{myId=sock.id});
+/* ---------- battle ---------- */
+let tileX,tileY,monstersLeft,enemy;   // local battle state
 
-/* ---------- combat popup ---------- */
-const popup=document.getElementById('combat');
-const eName=document.getElementById('enemyName');
-const eHp=document.getElementById('eHp');
-const eHpMax=document.getElementById('eHpMax');
-const logBox=document.getElementById('combatLog');
-
-let currentTile=null, enemy=null;
-
-function openFight(x,y){
-  currentTile={x,y};
-  sock.emit('requestEnemy',{x,y});
+function startBattle(x,y,count){
+  tileX=x; tileY=y; monstersLeft=count;
+  battleView.style.display='flex';
+  mapView.style.display='none';
+  nextBtn.disabled=leaveBtn.disabled=true;
+  logBox.value='';                         // clear log
+  getEnemy();
 }
-sock.on('enemyData',m=>{
-  enemy=JSON.parse(JSON.stringify(m));
+function getEnemy(){
+  sock.emit('requestEnemy',{x:tileX,y:tileY});
+}
+sock.on('enemyData',e=>{
+  enemy=e;
+  pName.textContent=state.players[myId].name;
+  pHpFill.style.width='100%';
+  pStats.textContent='HP 100 | ATK 10';
   eName.textContent=enemy.name;
-  eHp.textContent=enemy.hp;
-  eHpMax.textContent=enemy.hp;
-  logBox.textContent='';
-  popup.style.display='block';
+  eHpFill.style.width='100%';
+  eStats.textContent=`HP ${enemy.hp} | ATK ${enemy.atk}`;
+  logBox.value+=`A ${enemy.name} appears!\n`;
+  attackBtn.disabled=false;
 });
 
-document.getElementById('attackBtn').onclick=()=>{
+attackBtn.onclick=()=>{
   if(!enemy)return;
-  // simple player stats
-  const pAtk=10, pHpMax=100;
-  // player turn
-  const dmg=Math.floor(Math.random()*pAtk)+1;
-  enemy.hp=Math.max(enemy.hp-dmg,0);
-  logBox.textContent+=`You hit for ${dmg}\n`;
-  if(enemy.hp===0){ win(); return;}
-  // enemy turn
+  /* player swing (fixed stats for demo) */
+  const pdmg=Math.floor(Math.random()*10)+5;
+  enemy.hp=Math.max(enemy.hp-pdmg,0);
+  eHpFill.style.width=Math.round(enemy.hp/enemy.hpMax*100)+'%';
+  logBox.value+=`You hit for ${pdmg}\n`;
+  scrollLog();
+  if(enemy.hp===0){ monsterDown(); return;}
+  /* enemy swing */
   const edmg=Math.floor(Math.random()*enemy.atk)+1;
-  logBox.textContent+=`${enemy.name} hits for ${edmg}\n`;
-  eHp.textContent=enemy.hp;
+  logBox.value+=`${enemy.name} hits for ${edmg}\n`;
+  scrollLog();
 };
-function win(){
-  logBox.textContent+=`*** Defeated ${enemy.name}!\n`;
-  sock.emit('enemyDefeated',currentTile);
-  setTimeout(()=>{popup.style.display='none';enemy=null;},1000);
+
+function monsterDown(){
+  attackBtn.disabled=true;
+  logBox.value+=`*** Defeated ${enemy.name}!\n`;
+  scrollLog();
+  sock.emit('enemyDefeated',{x:tileX,y:tileY});
+  monstersLeft--;
+  if(monstersLeft>0){
+    nextBtn.disabled=false;
+  }else{
+    leaveBtn.disabled=false;
+  }
 }
-document.getElementById('leaveBtn').onclick=()=>{popup.style.display='none';enemy=null;}
+
+nextBtn.onclick=()=>{nextBtn.disabled=true; getEnemy();}
+leaveBtn.onclick=()=>{endBattle();}
+
+function endBattle(){
+  battleView.style.display='none';
+  mapView.style.display='flex';
+}
+
+function scrollLog(){logBox.scrollTop=logBox.scrollHeight;}
+
+/* ---------- socket state ---------- */
+sock.on('state',s=>{state=s; if(myId)renderSummary(); if(myId)drawMap();});
+sock.on('connect',()=>{myId=sock.id});
 </script>
 
