@@ -183,6 +183,7 @@ function drawMap(){
         const adj=Math.abs(x-me.x)+Math.abs(y-me.y);
         if(adj===1) sock.emit('moveTo',{x,y});
         else if(x===me.x&&y===me.y&&t.monstersRemaining) startBattle(x,y,t.monstersRemaining);
+        else if(x===0&&y===0&&x===me.x&&y===me.x) openVillage();
       };
       mapDiv.appendChild(d);
     }
@@ -277,7 +278,6 @@ sock.on('state',s=>{
 function clearedTiles(){let n=0;for(const t of Object.values(state.tiles))if(t.cleared)n++;return n;}
 
 /* ---------- socket updates ---------- */
-sock.on('state',s=>{state=s;if(myId){refreshSidebar();drawMap();}});
 
 sock.on('connect',()=>{myId=sock.id});
 </script>
