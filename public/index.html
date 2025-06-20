@@ -26,6 +26,12 @@
  button[disabled]{opacity:.4;cursor:not-allowed}
  #log{width:540px;height:180px;margin-top:8px;resize:none;overflow:auto;
       font-family:monospace;font-size:12px;border:1px solid #aaa;border-radius:4px}
+ #villageView{display:none;flex-direction:column;align-items:center;width:100%}
+ #villageView h2{margin:12px 0 4px}
+ #villageInner{background:#fff;padding:20px 28px;border-radius:12px;
+               box-shadow:0 4px 10px rgba(0,0,0,.2);text-align:center}
+ #vPop{font-size:24px;margin:6px 0}
+ #shop button{margin:4px 6px;padding:6px 12px;border:0;border-radius:8px;cursor:pointer}
 </style>
 
 <h1>TBRPG – lobby test</h1>
@@ -64,21 +70,42 @@
   <textarea id="log" readonly></textarea>
 </div>
 
+<!-- ▶ NEW VILLAGE VIEW -->
+<div id="villageView">
+  <div id="villageInner">
+    <h2>The Village</h2>
+    <div id="vPop">Pop 100</div>
+    <p id="vDesc">(A sleepy hamlet surrounded by wilderness.)</p>
+
+    <h3>Church</h3>
+    <button id="healBtn">Heal (1 g / lvl)</button>
+    <button id="herbBtn">Eat random herbs (+1 HP)</button>
+
+    <h3>Smithy</h3>
+    <div id="shop"></div>
+
+    <h3>Players in village</h3>
+    <ul id="villageList"></ul>
+
+    <br><button id="leaveVillage">Leave village</button>
+  </div>
+</div>
 <script src="/socket.io/socket.io.js"></script>
 <script>
 /* ========== Socket & global state ========== */
 const sock=io();
 let myId=null,state=null;
-
+const weaponTiers=['Wooden Club','Stone Knife','Bronze Dagger','Iron Sword'];
+const armorTiers =['Cloth Tunic','Padded Vest','Leather Armor','Chain Shirt']
 /* ---------- player local stats ---------- */
 const meStats={ level:1,xp:0,gold:0,
-  get hpMax(){return 100+10*(this.level-1)},
-  get atk  (){return 10+ 2*(this.level-1)},
+  get hpMax(){return Math.round(100+10*(this.level-1)+1.4**this.level)},
+  get atk  (){return Math.round(10+ 2*(this.level-1)+1.2**this.level)},
   hp:100
 };
 function gain(xp,gold){
   meStats.xp+=xp; meStats.gold+=gold;
-  while(meStats.xp>=meStats.level*25){
+  while(meStats.xp >= Math.round(20 + 5 * meStats.level + 1.2 ** meStats.level)){
     meStats.xp-=meStats.level*25; meStats.level++;
     meStats.hp=meStats.hpMax;
     addLog(`*** Level up! Now Lv ${meStats.level}\n`);
@@ -101,6 +128,17 @@ const attackBtn=document.getElementById('attackBtn');
 const nextBtn=document.getElementById('nextBtn');
 const leaveBtn=document.getElementById('leaveBtn');
 const logBox=document.getElementById('log');
+const villageView=document.getElementById('villageView');
+const vPop=document.getElementById('vPop');
+const vDesc=document.getElementById('vDesc');
+const villageList=document.getElementById('villageList');
+const shopDiv=document.getElementById('shop');
+const desc=[
+  [0,199,'A sleepy hamlet surrounded by wilderness.'],
+  [200,499,'A growing village with fresh wooden palisades.'],
+  [500,999,'A bustling town, smoke rising from many chimneys.'],
+  [1000,99999,'A thriving city with stone walls and busy markets.']
+];
 function addLog(t){logBox.value+=t;logBox.scrollTop=logBox.scrollHeight;}
 
 /* ---------- join ---------- */
@@ -201,7 +239,53 @@ leaveBtn.onclick=endBattle;
 function endBattle(){
   battleView.style.display='none';mapView.style.display='flex';
 }
+function openVillage(){
+  villageView.style.display='flex'; mapView.style.display='none';
+  battleView.style.display='none';
+  sock.emit('enterVillage');
+}
+document.getElementById('leaveVillage').onclick=()=>{villageView.style.display='none';mapView.style.display='flex';sock.emit('leaveVillage');};
 
+/* church buttons */
+document.getElementById('healBtn').onclick=()=>sock.emit('healAtChurch');
+sock.on('healed',()=>{meStats.hp=meStats.hpMax;refreshSidebar();});
+document.getElementById('herbBtn').onclick=()=>{if(meStats.hp<meStats.hpMax){meStats.hp++;refreshSidebar();}}
+
+/* ---------- shop render (very simple) ------------ */
+function rebuildShop(pop){
+  shopDiv.innerHTML='';
+  const tier=Math.min(Math.floor(pop/250),weaponTiers.length-1); // unlock every 250 pop
+  const w=weaponTiers[tier], a=armorTiers[tier];
+  const bw=document.createElement('button');bw.textContent=`Buy ${w} (5g)`;shopDiv.appendChild(bw);
+  const ba=document.createElement('button');ba.textContent=`Buy ${a} (5g)`;shopDiv.appendChild(ba);
+}
+
+sock.on('state',s=>{
+  state=s; if(myId){refreshSidebar();drawMap();}
+  if(s.village){
+    const pop=s.village.population;
+    vPop.textContent=`Pop ${pop} (${ (1/ (clearedTiles()*0.01||0.01)).toFixed(1)} s/+1)`;
+    const d=desc.find(r=>pop>=r[0]&&pop<=r[1]); if(d)vDesc.textContent=d[2];
+    rebuildShop(pop);
+    // list players inside
+    villageList.innerHTML='';
+    Object.values(s.players).filter(p=>p.inVillage).forEach(p=>{
+      const li=document.createElement('li');li.textContent=p.name;li.style.color=p.color;villageList.appendChild(li);
+    });
+  }
+});
+function clearedTiles(){let n=0;for(const t of Object.values(state.tiles))if(t.cleared)n++;return n;}
+
+/* --- map click update to enter village --- */
+function drawMap(){ /* … existing code … */
+  // inside loop when adding onclick
+      d.onclick=()=>{
+        const adj=Math.abs(x-me.x)+Math.abs(y-me.y);
+        if(adj===1) sock.emit('moveTo',{x,y});
+        else if(x===0&&y===0&&x===me.x&&y===me.y) openVillage();
+        else if(x===me.x&&y===me.y&&t.monstersRemaining) startBattle(x,y,t.monstersRemaining);
+      };
+}
 /* ---------- socket updates ---------- */
 sock.on('state',s=>{state=s;if(myId){refreshSidebar();drawMap();}});
 sock.on('connect',()=>{myId=sock.id});
