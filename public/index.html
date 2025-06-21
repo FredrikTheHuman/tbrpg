@@ -360,6 +360,7 @@ attackBtn.onclick=()=>{
   return;
 }
 };
+leaveBtn.onclick = endBattle;
 function victory() {
   attackBtn.disabled = true;
   addLog(`*** Defeated ${enemy.name}! (+${enemy.xp} XP, +${enemy.gold}g)\n`);
