@@ -91,9 +91,12 @@ function clearedTiles () {
   let n = 0; for (const t of world.values()) if (t.cleared) n++; return n;
 }
 
-/* grow by 1 pop when growthClock ≥ 1 — proportional to cleared tiles */
 setInterval(() => {
-  const growth = clearedTiles() * 0.01;     // tweak factor as desired
+  let growth = 0;
+  const N = clearedTiles();
+  for (let i = 1; i <= N; i++) {
+    growth += 0.01/i;
+  }
   village.growthClock += growth;
   if (village.growthClock >= 1) {
     const inc = Math.floor(village.growthClock);
