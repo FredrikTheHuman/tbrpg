@@ -19,13 +19,32 @@ function key (x, y)            { return `${x},${y}`; }
 function ringOf (x, y)         { return Math.max(Math.abs(x), Math.abs(y)); }
 
 /** create wilderness tile lazily (8 · ring monsters max) */
-function ensureTile (x, y) {
+function ensureTile(x, y) {
   const k = key(x, y);
   if (world.has(k)) return world.get(k);
 
-  const r   = ringOf(x, y);
-  const amt = Math.floor(Math.random() * (8 * Math.max(r, 1))) + 1; // 1-8 , 1-16 , 1-24 …
-  const t   = { type: 'wilderness', monstersRemaining: amt, cleared: false };
+  const r = ringOf(x, y);
+  const layer = Math.max(r, 1); // 1 = first ring, 2 = second ring, etc.
+  const t = { type: 'wilderness', monstersRemaining: 0, cleared: false, spawnPool: [] };
+
+  // Determine how many monsters in this tile
+  const baseMin = 8;
+  const baseMax = baseMin * layer;
+  t.monstersRemaining = Math.floor(Math.random() * (baseMax - baseMin + 1)) + baseMin;
+
+  // Build weighted monster pool based on layer
+  let weights = [];
+  for (let i = 0; i < monsters.length; i++) {
+    if (i < layer) {
+      weights.push(i + 1); // e.g. layer 2 gives Rat:1, Slime:2
+    } else {
+      weights.push(0); // monster not available yet
+    }
+  }
+
+  // Create weighted pool for this tile
+  t.spawnPool = monsters.flatMap((m, i) => Array(weights[i]).fill(i));
+
   world.set(k, t);
   return t;
 }
@@ -40,13 +59,10 @@ const monsters = [
   { name:'Troll',       hp:220,  atk: 25, xp:180, gold: 30, weight:  4 },
 ];
 
-function rollMonster () {
-  const total = monsters.reduce((s, m) => s + m.weight, 0);
-  let rnd = Math.random() * total;
-  for (const m of monsters) {
-    if ((rnd -= m.weight) < 0) return { ...m };      // clone
-  }
-  return { ...monsters[0] };
+function rollMonster(tile) {
+  const pool = tile.spawnPool || [0]; // fallback to Rat if not set
+  const chosen = pool[Math.floor(Math.random() * pool.length)];
+  return { ...monsters[chosen] }; // clone
 }
 
 /* ═══════════════ 3. PLAYERS ═════════════════════ */
@@ -139,9 +155,10 @@ io.on('connection', sock => {
       sock.emit('enemyData', null);
       return;
     }
-    const foe = rollMonster();
+    const foe = rollMonster(t);
     sock.emit('enemyData', foe);
   });
+  
 
   /* ─ combat: mark kill ─ */
   sock.on('enemyDefeated', ({ x, y }) => {
