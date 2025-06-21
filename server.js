@@ -52,11 +52,19 @@ function ensureTile(x, y) {
 /* ═══════════════ 2. MONSTER TABLE ═══════════════ */
 
 const monsters = [
-  { name:'Rat',         hp: 20,  atk:  3, xp: 10, gold:  5, weight: 18 },
-  { name:'Green Slime', hp: 25,  atk:  4, xp: 15, gold:  8, weight: 22 },
-  { name:'Goblin',      hp:100,  atk: 10, xp: 50, gold: 12, weight: 12 },
-  { name:'Orc',         hp:150,  atk: 15, xp: 90, gold: 18, weight:  7 },
-  { name:'Troll',       hp:220,  atk: 25, xp:180, gold: 30, weight:  4 },
+  { name:'Rat',         hp: 20,  atk:  3, xp: 3, gold:  1, weight: 1 },
+  { name:'Green Slime', hp: 115,  atk:  2, xp: 23, gold:  3, weight: 2 },
+  { name:'Goblin',      hp:225,  atk: 13, xp: 44, gold: 8, weight: 3 },
+  { name:'Orc',         hp:440,  atk: 25, xp: 78, gold: 25, weight:  4 },
+  { name:'Troll',       hp:800,  atk: 40, xp:141, gold: 51, weight:  5 },
+  { name:'Wither',       hp:334,  atk: 99, xp:333, gold: 99, weight:  6 },
+  { name:'Gryphon',       hp:1106,  atk: 125, xp:797, gold: 375, weight:  7 },
+  { name:'Dragon',       hp:8000,  atk: 340, xp:3543, gold: 4500, weight:  8 },
+  { name:'Titan',       hp:38000,  atk: 349, xp:14012, gold: 7431, weight:  9 },
+  { name:'SCRAMLER',       hp:14800,  atk: 777, xp:27041, gold:13321, weight:  10 },
+  { name:'blasphemer',       hp:3500,  atk: 99999, xp:99999, gold: 99999, weight:  11 },
+
+
 ];
 
 function rollMonster(tile) {
