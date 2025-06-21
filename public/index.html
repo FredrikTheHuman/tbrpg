@@ -82,6 +82,7 @@
     <button id="herbBtn">Eat random herbs (+1 HP)</button>
 
     <h3>Smithy</h3>
+    <p id="tierInfo"></p>
     <div id="shop"></div>
 
     <h3>Players in village</h3>
@@ -302,21 +303,41 @@ document.getElementById('herbBtn').onclick=()=>{if(meStats.hp<meStats.hpMax){meS
 
 /* ---------- shop render (very simple) ------------ */
 function popForTier(t) {
-  return Math.round(100 + 150 * t + 1.25 ** t);  // Hybrid: linear + soft exponential
+  if (t === 0) return 0; // allow tier 0 from the start
+  return Math.round(100 + 150 * t + 1.25 ** t);
 }
+
 
 function goldCostForTier(t) {
   return Math.round(5 + 2 * t + 1.45 ** t);     // Similar scaling for cost
 }
 
 function rebuildShop(pop) {
-  shopDiv.innerHTML = '';
+  const tierInfoBox = document.getElementById('tierInfo');
 
-  // Determine max unlocked tier by pop
+  // Determine max tier unlocked by current village pop
   let maxTier = 0;
   while (maxTier + 1 < weaponTiers.length && pop >= popForTier(maxTier + 1)) {
     maxTier++;
   }
+
+  // Calculate when the next tier unlocks
+  const nextTierPop = maxTier + 1 < weaponTiers.length
+    ? popForTier(maxTier + 1)
+    : null;
+
+  // Update the info text
+  let infoText = `Village has unlocked tier <b>${maxTier}</b> gear.`;
+  if (nextTierPop !== null) {
+    infoText += ` Next unlock at <b>${nextTierPop}</b> population.`;
+  } else {
+    infoText += ` All gear tiers unlocked.`;
+  }
+
+  tierInfoBox.innerHTML = infoText;
+
+  // Continue with rendering the shop
+  shopDiv.innerHTML = '';
 
   const nextWeaponTier = meStats.weaponTier + 1;
   const nextArmorTier = meStats.armorTier + 1;
