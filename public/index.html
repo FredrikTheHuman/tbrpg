@@ -323,6 +323,10 @@ function updateHeroBar(){
   pHp.style.width=Math.round(meStats.hp/meStats.hpMax*100)+'%';
   pStats.textContent=`HP ${meStats.hp}/${meStats.hpMax} | ATK ${meStats.atk}`;
 }
+function endBattle() {
+  battleView.style.display = 'none';
+  mapDiv.style.display = 'grid';
+}
 sock.on('enemyData',e=>{
   enemy={...e,maxHp:e.hp};
   eName.textContent=enemy.name;
