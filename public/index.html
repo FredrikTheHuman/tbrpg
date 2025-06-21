@@ -6,7 +6,7 @@
  body{font-family:sans-serif;margin:0;display:flex;flex-direction:column;
        align-items:center;background:#f3f3f8}
  h1{margin:16px 0}
- #mapView{display:none;gap:24px}
+ #mapView{display:flex;gap:24px}
  #summary{min-width:190px}
  #map{display:grid;gap:2px}
  .tile{width:var(--tile);height:var(--tile);border:1px solid #888;
@@ -109,7 +109,9 @@ function gain(xp,gold){
     meStats.xp-=meStats.level*25; meStats.level++;
     meStats.hp=meStats.hpMax;
     addLog(`*** Level up! Now Lv ${meStats.level}\n`);
+    refreshSidebar();
   }
+
 }
 
 /* ---------- DOM refs ---------- */
@@ -194,10 +196,11 @@ function drawMap(){
 let tileX,tileY,monstersLeft,enemy;
 function startBattle(x,y,count){
   tileX=x;tileY=y;monstersLeft=count;logBox.value='';
-  mapView.style.display='none';battleView.style.display='flex';
+  mapDiv.style.display='none';battleView.style.display='flex';
   nextBtn.disabled=leaveBtn.disabled=true; attackBtn.disabled=true;
   pName.textContent=state.players[myId].name;
   updateHeroBar();
+  refreshSidebar();
   sock.emit('requestEnemy',{x,y});
 }
 function updateHeroBar(){
@@ -224,7 +227,20 @@ attackBtn.onclick=()=>{
   meStats.hp=Math.max(meStats.hp-edmg,0);
   updateHeroBar();
   addLog(`${enemy.name} hits for ${edmg}\n`);
-  if(meStats.hp===0){addLog('*** You were defeated! Respawning…\n');sock.emit('respawn');meStats.hp=meStats.hpMax;endBattle();return;}
+  if (meStats.hp === 0) {
+  addLog('*** You were defeated! Respawning at Level 1...\n');
+  sock.emit('respawn'); // Tells the server to move the player to 0,0
+
+  // Reset player stats
+  meStats.level = 1;
+  meStats.xp = 0;
+  meStats.gold = 0;
+  meStats.hp = meStats.hpMax;
+
+  refreshSidebar(); // Update visible stats
+  endBattle();      // Show the map again (player will now be at 0,0)
+  return;
+}
 };
 function victory(){
   attackBtn.disabled=true;
@@ -238,28 +254,82 @@ function victory(){
 nextBtn.onclick=()=>{nextBtn.disabled=true;attackBtn.disabled=true;sock.emit('requestEnemy',{x:tileX,y:tileY});};
 leaveBtn.onclick=endBattle;
 function endBattle(){
-  battleView.style.display='none';mapView.style.display='flex';
+  battleView.style.display='none';mapDiv.style.display='grid';
 }
 function openVillage(){
-  villageView.style.display='flex'; mapView.style.display='none';
+  villageView.style.display='flex'; mapDiv.style.display='none';
   battleView.style.display='none';
   sock.emit('enterVillage');
 }
-document.getElementById('leaveVillage').onclick=()=>{villageView.style.display='none';mapView.style.display='flex';sock.emit('leaveVillage');};
+document.getElementById('leaveVillage').onclick=()=>{villageView.style.display='none';mapDiv.style.display='grid';sock.emit('leaveVillage');};
 
 /* church buttons */
-document.getElementById('healBtn').onclick=()=>sock.emit('healAtChurch');
+document.getElementById('healBtn').onclick = () => {
+  const cost = meStats.level; // 1g per level
+  if (meStats.gold >= cost) {
+    meStats.gold -= cost;
+    meStats.hp = meStats.hpMax;
+    refreshSidebar();
+    addLog(`Healed for ${cost}g.\n`);
+  } else {
+    addLog(`Not enough gold to heal (${cost}g needed).\n`);
+  }
+}
 sock.on('healed',()=>{meStats.hp=meStats.hpMax;refreshSidebar();});
 document.getElementById('herbBtn').onclick=()=>{if(meStats.hp<meStats.hpMax){meStats.hp++;refreshSidebar();}}
 
 /* ---------- shop render (very simple) ------------ */
-function rebuildShop(pop){
-  shopDiv.innerHTML='';
-  const tier=Math.min(Math.floor(pop/250),weaponTiers.length-1); // unlock every 250 pop
-  const w=weaponTiers[tier], a=armorTiers[tier];
-  const bw=document.createElement('button');bw.textContent=`Buy ${w} (5g)`;shopDiv.appendChild(bw);
-  const ba=document.createElement('button');ba.textContent=`Buy ${a} (5g)`;shopDiv.appendChild(ba);
+function popForTier(t) {
+  return Math.round(100 + 150 * t + 1.25 ** t);  // Hybrid: linear + soft exponential
 }
+
+function goldCostForTier(t) {
+  return Math.round(5 + 2 * t + 1.45 ** t);     // Similar scaling for cost
+}
+
+function rebuildShop(pop) {
+  shopDiv.innerHTML = '';
+
+  // Determine current tier based on pop
+  let tier = 0;
+  while (tier + 1 < weaponTiers.length && pop >= popForTier(tier + 1)) {
+    tier++;
+  }
+
+  const w = weaponTiers[tier];
+  const a = armorTiers[tier];
+  const goldCost = goldCostForTier(tier);
+
+  const nextTierPop = popForTier(tier + 1);
+  const showNext = tier + 1 < weaponTiers.length;
+
+  // Create weapon button
+  const bw = document.createElement('button');
+  bw.textContent = `Buy ${w} (${goldCost}g)` + (showNext ? ` — Next tier at ${nextTierPop} pop` : '');
+  bw.disabled = meStats.gold < goldCost;
+  bw.onclick = () => {
+    if (meStats.gold >= goldCost) {
+      meStats.gold -= goldCost;
+      addLog(`Bought ${w} for ${goldCost}g.\n`);
+      refreshSidebar();
+    }
+  };
+  shopDiv.appendChild(bw);
+
+  // Create armor button
+  const ba = document.createElement('button');
+  ba.textContent = `Buy ${a} (${goldCost}g)` + (showNext ? ` — Next tier at ${nextTierPop} pop` : '');
+  ba.disabled = meStats.gold < goldCost;
+  ba.onclick = () => {
+    if (meStats.gold >= goldCost) {
+      meStats.gold -= goldCost;
+      addLog(`Bought ${a} for ${goldCost}g.\n`);
+      refreshSidebar();
+    }
+  };
+  shopDiv.appendChild(ba);
+}
+
 
 sock.on('state',s=>{
   state=s; if(myId){refreshSidebar();drawMap();}

@@ -153,6 +153,16 @@ io.on('connection', sock => {
     }
   });
 
+  sock.on('respawn', () => {
+  const p = players.get(sock.id);
+  if (p) {
+    p.x = 0;
+    p.y = 0;
+    p.inVillage = false; // player is back in village square but not inside the UI
+    broadcast();
+  }
+});
+
   /* ─ disconnect ─ */
   sock.on('disconnect', () => {
     players.delete(sock.id);
