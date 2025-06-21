@@ -64,7 +64,6 @@
 
   <div id="controls">
     <button id="attackBtn">Attack</button>
-    <button id="nextBtn"  disabled>Next Enemy</button>
     <button id="leaveBtn" disabled>Leave</button>
   </div>
   <textarea id="log" readonly></textarea>
@@ -96,8 +95,96 @@
 /* ========== Socket & global state ========== */
 const sock=io();
 let myId=null,state=null;
-const weaponTiers=['Wooden Club','Stone Knife','Bronze Dagger','Iron Sword'];
-const armorTiers =['Cloth Tunic','Padded Vest','Leather Armor','Chain Shirt']
+const weaponTiers = [
+  'Wooden Club',
+  'Sharpened Stick',
+  'Stone Knife',
+  'Flint Shiv',
+  'Bronze Dagger',
+  'Copper Dirk',
+  'Rusty Short Sword',
+  'Worn Gladius',
+  'Iron Sword',
+  'Iron Hatchet',
+  'Stone Axe',
+  'Bone Halberd',
+  'Reinforced Spear',
+  'Hardened Pike',
+  'Steel Sword',
+  'Fine Cutlass',
+  'Silver Rapier',
+  'Gilded Sabre',
+  'Elven Longbow',
+  'Oak Recurve Bow',
+  'Dwarven Warhammer',
+  'Heavy Maul',
+  'Obsidian Blade',
+  'Shadow Edge',
+  'Dragonfang',
+  'Wyrmfang',
+  'Runebound Claymore',
+  'Celestine Greatsword',
+  'Phoenix Talon',
+  'Solar Brand',
+  'Celestial Edge',
+  'Astral Cleaver',
+  'Voidrender',
+  'Starlight Reaver',
+  'Eternity\'s End',
+  'Oblivion\'s Wrath',
+  'Infinity Splitter',
+  'Omega Crescent',
+  'Paradox Breaker',
+  'Reality Shaper',
+  'Reality Render'
+];
+
+const armorTiers = [
+  'Cloth Tunic',
+  'Patchwork Robe',
+  'Ragged Cloak',
+  'Tattered Jerkin',
+  'Padded Vest',
+  'Quilted Gambeson',
+  'Studded Leather',
+  'Brigand Vest',
+  'Leather Armor',
+  'Cured Leather',
+  'Reinforced Leather',
+  'Boiled Leather Coat',
+  'Hide Jerkin',
+  'Scaled Hide Vest',
+  'Chain Shirt',
+  'Riveted Hauberk',
+  'Chainmail',
+  'Layered Mail',
+  'Scale Mail',
+  'Lamellar Armor',
+  'Breastplate',
+  'Half Plate',
+  'Plate Armor',
+  'Tempered Plate',
+  'Dwarven Plate',
+  'Runed Plate',
+  'Mythril Aegis',
+  'Adamantine Carapace',
+  'Dragonscale Mail',
+  'Elder Dragonscale',
+  'Runic Bulwark',
+  'Sanctified Bulwark',
+  'Celestial Plate',
+  'Astral Shell',
+  'Cosmic Exosuit',
+  'Stasis Exosuit',
+  'Eternity Shroud',
+  'Infinity Carapace',
+  'Omega Guard',
+  'Paradox Shell',
+  'Void Armor',
+  'Reality Mantle',
+  'Reality Shrouder'
+];
+
 /* ---------- player local stats ---------- */
 const meStats = {
   level: 1,
@@ -117,20 +204,28 @@ const meStats = {
     return this.armorTier >= 0 ? (this.armorTier + 1) * 2 : 0;
   },
   get hpMax() {
-    return Math.round(100 + 10 * (this.level - 1) + 1.4 ** this.level);
+    return Math.round(100 + 10 * (this.level - 1) + 1.3 ** this.level);
   }
 };
 
-function gain(xp,gold){
-  meStats.xp+=xp; meStats.gold+=gold;
-  while(meStats.xp >= Math.round(20 + 5 * meStats.level + 1.2 ** meStats.level)){
-    meStats.xp-=meStats.level*25; meStats.level++;
-    meStats.hp=meStats.hpMax;
-    addLog(`*** Level up! Now Lv ${meStats.level}\n`);
-    refreshSidebar();
-  }
+function gain(xp, gold){
+  meStats.xp += xp;
+  meStats.gold += gold;
 
+  while (true) {
+    const requiredXP = Math.round(20 + 13 * meStats.level + 1.24 ** meStats.level);
+    if (meStats.xp >= requiredXP) {
+      meStats.xp -= requiredXP;
+      meStats.level++;
+      meStats.hp = meStats.hpMax;
+      addLog(`*** Level up! Now Lv ${meStats.level}\n`);
+      refreshSidebar();
+    } else {
+      break;
+    }
+  }
 }
+
 
 /* ---------- DOM refs ---------- */
 const mapView=document.getElementById('mapView');
@@ -145,7 +240,6 @@ const eName=document.getElementById('eName');
 const eHp=document.getElementById('eHp');
 const eStats=document.getElementById('eStats');
 const attackBtn=document.getElementById('attackBtn');
-const nextBtn=document.getElementById('nextBtn');
 const leaveBtn=document.getElementById('leaveBtn');
 const logBox=document.getElementById('log');
 const villageView=document.getElementById('villageView');
@@ -219,7 +313,7 @@ let tileX,tileY,monstersLeft,enemy;
 function startBattle(x,y,count){
   tileX=x;tileY=y;monstersLeft=count;logBox.value='';
   mapDiv.style.display='none';battleView.style.display='flex';
-  nextBtn.disabled=leaveBtn.disabled=true; attackBtn.disabled=true;
+  leaveBtn.disabled=true; attackBtn.disabled=true;
   pName.textContent=state.players[myId].name;
   updateHeroBar();
   refreshSidebar();
@@ -239,6 +333,7 @@ sock.on('enemyData',e=>{
 });
 attackBtn.onclick=()=>{
   /* player hit */
+  leaveBtn.disabled = true;
   const pdmg=Math.floor(Math.random()*meStats.atk)+1;
   enemy.hp=Math.max(enemy.hp-pdmg,0);
   eHp.style.width=Math.round(enemy.hp/enemy.maxHp*100)+'%';
@@ -265,19 +360,22 @@ attackBtn.onclick=()=>{
   return;
 }
 };
-function victory(){
-  attackBtn.disabled=true;
+function victory() {
+  attackBtn.disabled = true;
   addLog(`*** Defeated ${enemy.name}! (+${enemy.xp} XP, +${enemy.gold}g)\n`);
-  gain(enemy.xp,enemy.gold); refreshSidebar();
-  sock.emit('enemyDefeated',{x:tileX,y:tileY});
+  gain(enemy.xp, enemy.gold);
+  refreshSidebar();
+  sock.emit('enemyDefeated', { x: tileX, y: tileY });
   monstersLeft--;
-  if(monstersLeft>0){nextBtn.disabled=false;leaveBtn.disabled=false;}
-  else {leaveBtn.disabled=false;}
-}
-nextBtn.onclick=()=>{nextBtn.disabled=true;attackBtn.disabled=true;sock.emit('requestEnemy',{x:tileX,y:tileY});};
-leaveBtn.onclick=endBattle;
-function endBattle(){
-  battleView.style.display='none';mapDiv.style.display='grid';
+
+  if (monstersLeft > 0) {
+    // Automatically start next battle after short delay
+    setTimeout(() => {
+      sock.emit('requestEnemy', { x: tileX, y: tileY });
+    }, 400); // adjust delay as needed
+  } else {
+    leaveBtn.disabled = false;
+  }
 }
 function openVillage(){
   villageView.style.display='flex'; mapDiv.style.display='none';
@@ -309,7 +407,7 @@ function popForTier(t) {
 
 
 function goldCostForTier(t) {
-  return Math.round(5 + 2 * t + 1.45 ** t);     // Similar scaling for cost
+  return Math.round(5 + 5 * t + 1.7 ** t);     // Similar scaling for cost
 }
 
 function rebuildShop(pop) {
