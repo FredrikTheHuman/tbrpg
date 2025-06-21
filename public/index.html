@@ -98,11 +98,28 @@ let myId=null,state=null;
 const weaponTiers=['Wooden Club','Stone Knife','Bronze Dagger','Iron Sword'];
 const armorTiers =['Cloth Tunic','Padded Vest','Leather Armor','Chain Shirt']
 /* ---------- player local stats ---------- */
-const meStats={ level:1,xp:0,gold:0,
-  get hpMax(){return Math.round(100+10*(this.level-1)+1.4**this.level)},
-  get atk  (){return Math.round(10+ 2*(this.level-1)+1.2**this.level)},
-  hp:100
+const meStats = {
+  level: 1,
+  xp: 0,
+  gold: 0,
+  hp: 100,
+  weaponTier: -1, // -1 = no weapon
+  armorTier: -1,  // -1 = no armor
+  get weapon() { return this.weaponTier >= 0 ? weaponTiers[this.weaponTier] : "None"; },
+  get armor()  { return this.armorTier  >= 0 ? armorTiers[this.armorTier]  : "None"; },
+  get atk() {
+    const base = Math.round(10 + 2 * (this.level - 1) + 1.2 ** this.level);
+    const weaponBonus = this.weaponTier >= 0 ? (this.weaponTier + 1) * 3 : 0;
+    return base + weaponBonus;
+  },
+  get def() {
+    return this.armorTier >= 0 ? (this.armorTier + 1) * 2 : 0;
+  },
+  get hpMax() {
+    return Math.round(100 + 10 * (this.level - 1) + 1.4 ** this.level);
+  }
 };
+
 function gain(xp,gold){
   meStats.xp+=xp; meStats.gold+=gold;
   while(meStats.xp >= Math.round(20 + 5 * meStats.level + 1.2 ** meStats.level)){
@@ -139,7 +156,7 @@ const desc=[
   [0,199,'A sleepy hamlet surrounded by wilderness.'],
   [200,499,'A growing village with fresh wooden palisades.'],
   [500,999,'A bustling town, smoke rising from many chimneys.'],
-  [1000,99999,'A thriving city with stone walls and busy markets.']
+  [1000,999999999,'A thriving city with stone walls and busy markets.']
 ];
 function addLog(t){logBox.value+=t;logBox.scrollTop=logBox.scrollHeight;}
 
@@ -155,15 +172,19 @@ document.getElementById('joinBtn').onclick=()=>{
 
 /* ---------- map drawing ---------- */
 const SIZE=15,R=Math.floor(SIZE/2);
-function refreshSidebar(){
-  sumBox.innerHTML=
-   `HP <b>${meStats.hp}</b> / ${meStats.hpMax}<br>
-    ATK <b>${meStats.atk}</b><br>
-    Gold <b>${meStats.gold}</b><br>
-    Lv <b>${meStats.level}</b> XP ${meStats.xp}/${meStats.level*25}`;
-  onlineUl.innerHTML='';
-  Object.values(state.players).forEach(p=>{
-    const li=document.createElement('li');li.textContent=p.name;li.style.color=p.color;
+function refreshSidebar() {
+  sumBox.innerHTML =
+    `HP <b>${meStats.hp}</b> / ${meStats.hpMax}<br>
+     ATK <b>${meStats.atk}</b>  DEF <b>${meStats.def}</b><br>
+     Weapon: <b>${meStats.weapon}</b><br>
+     Armor: <b>${meStats.armor}</b><br>
+     Gold <b>${meStats.gold}</b><br>
+     Lv <b>${meStats.level}</b> XP ${meStats.xp}/${meStats.level * 25}`;
+  onlineUl.innerHTML = '';
+  Object.values(state.players).forEach(p => {
+    const li = document.createElement('li');
+    li.textContent = p.name;
+    li.style.color = p.color;
     onlineUl.appendChild(li);
   });
 }
@@ -223,9 +244,10 @@ attackBtn.onclick=()=>{
   addLog(`You hit for ${pdmg}\n`);
   if(enemy.hp===0){victory();return;}
   /* enemy hit */
-  const edmg=Math.floor(Math.random()*enemy.atk)+1;
-  meStats.hp=Math.max(meStats.hp-edmg,0);
+  const edmg = Math.max(1, Math.floor(Math.random() * enemy.atk + 1 - meStats.def));
+  meStats.hp = Math.max(meStats.hp - edmg, 0);
   updateHeroBar();
+  refreshSidebar();
   addLog(`${enemy.name} hits for ${edmg}\n`);
   if (meStats.hp === 0) {
   addLog('*** You were defeated! Respawning at Level 1...\n');
@@ -290,44 +312,32 @@ function goldCostForTier(t) {
 function rebuildShop(pop) {
   shopDiv.innerHTML = '';
 
-  // Determine current tier based on pop
-  let tier = 0;
-  while (tier + 1 < weaponTiers.length && pop >= popForTier(tier + 1)) {
-    tier++;
+  // Determine max unlocked tier by pop
+  let maxTier = 0;
+  while (maxTier + 1 < weaponTiers.length && pop >= popForTier(maxTier + 1)) {
+    maxTier++;
   }
 
-  const w = weaponTiers[tier];
-  const a = armorTiers[tier];
-  const goldCost = goldCostForTier(tier);
+  const nextWeaponTier = meStats.weaponTier + 1;
+  const nextArmorTier = meStats.armorTier + 1;
 
-  const nextTierPop = popForTier(tier + 1);
-  const showNext = tier + 1 < weaponTiers.length;
-
-  // Create weapon button
-  const bw = document.createElement('button');
-  bw.textContent = `Buy ${w} (${goldCost}g)` + (showNext ? ` — Next tier at ${nextTierPop} pop` : '');
-  bw.disabled = meStats.gold < goldCost;
-  bw.onclick = () => {
-    if (meStats.gold >= goldCost) {
-      meStats.gold -= goldCost;
-      addLog(`Bought ${w} for ${goldCost}g.\n`);
-      refreshSidebar();
-    }
-  };
-  shopDiv.appendChild(bw);
-
-  // Create armor button
-  const ba = document.createElement('button');
-  ba.textContent = `Buy ${a} (${goldCost}g)` + (showNext ? ` — Next tier at ${nextTierPop} pop` : '');
-  ba.disabled = meStats.gold < goldCost;
-  ba.onclick = () => {
-    if (meStats.gold >= goldCost) {
-      meStats.gold -= goldCost;
-      addLog(`Bought ${a} for ${goldCost}g.\n`);
-      refreshSidebar();
-    }
-  };
-  shopDiv.appendChild(ba);
+  if (nextWeaponTier <= maxTier) {
+    const w = weaponTiers[nextWeaponTier];
+    const goldCost = goldCostForTier(nextWeaponTier);
+    const bw = document.createElement('button');
+    bw.textContent = `Buy ${w} (${goldCost}g) [ATK +${(nextWeaponTier + 1) * 3}]`;
+    bw.disabled = meStats.gold < goldCost;
+    bw.onclick = () => {
+      if (meStats.gold >= goldCost) {
+        meStats.gold -= goldCost;
+        meStats.weaponTier = nextWeaponTier;
+        addLog(`Bought ${w} and equipped it.\n`);
+        refreshSidebar();
+        rebuildShop(pop);
+      }
+    };
+    shopDiv.appendChild(bw);
+  }
 }
 
 
