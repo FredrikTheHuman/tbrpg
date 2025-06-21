@@ -367,18 +367,16 @@ function victory() {
   refreshSidebar();
   sock.emit('enemyDefeated', { x: tileX, y: tileY });
   monstersLeft--;
-  leaveBtn.disabled = false;
 
+  leaveBtn.disabled = false; // ✅ Enable leave again after enemy is defeated
 
   if (monstersLeft > 0) {
-    // Automatically start next battle after short delay
     setTimeout(() => {
       sock.emit('requestEnemy', { x: tileX, y: tileY });
-    }, 400); // adjust delay as needed
-  } else {
-    leaveBtn.disabled = false;
+    }, 400);
   }
 }
+
 function openVillage(){
   villageView.style.display='flex'; mapDiv.style.display='none';
   battleView.style.display='none';
