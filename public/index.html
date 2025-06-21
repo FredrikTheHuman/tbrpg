@@ -367,6 +367,8 @@ function victory() {
   refreshSidebar();
   sock.emit('enemyDefeated', { x: tileX, y: tileY });
   monstersLeft--;
+  leaveBtn.disabled = false;
+
 
   if (monstersLeft > 0) {
     // Automatically start next battle after short delay
