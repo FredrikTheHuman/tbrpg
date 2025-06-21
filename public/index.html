@@ -338,6 +338,24 @@ function rebuildShop(pop) {
     };
     shopDiv.appendChild(bw);
   }
+
+  if (nextArmorTier <= maxTier) {
+    const a = armorTiers[nextArmorTier];
+    const goldCost = goldCostForTier(nextArmorTier);
+    const ba = document.createElement('button');
+    ba.textContent = `Buy ${a} (${goldCost}g) [DEF +${(nextArmorTier + 1) * 2}]`;
+    ba.disabled = meStats.gold < goldCost;
+    ba.onclick = () => {
+      if (meStats.gold >= goldCost) {
+        meStats.gold -= goldCost;
+        meStats.armorTier = nextArmorTier;
+        addLog(`Bought ${a} and equipped it.\n`);
+        refreshSidebar();
+        rebuildShop(pop);
+      }
+    };
+    shopDiv.appendChild(ba);
+  }
 }
 
 
