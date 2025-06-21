@@ -84,6 +84,12 @@
     <p id="tierInfo"></p>
     <div id="shop"></div>
 
+    <h3>Housing</h3>
+    <div id="housingShop"></div>
+
+    <h3>Homeowners</h3>
+    <ul id="homeownersList"></ul>
+
     <h3>Players in village</h3>
     <ul id="villageList"></ul>
 
@@ -283,14 +289,17 @@ document.getElementById('joinBtn').onclick=()=>{
 /* ---------- map drawing ---------- */
 const SIZE=15,R=Math.floor(SIZE/2);
 function refreshSidebar() {
+  const requiredXP = Math.round(20 + 13 * meStats.level + 1.24 ** meStats.level);
+
   sumBox.innerHTML =
     `HP <b>${meStats.hp}</b> / ${meStats.hpMax}<br>
      ATK <b>${meStats.atk}</b>  DEF <b>${meStats.def}</b><br>
      Weapon: <b>${meStats.weapon}</b><br>
      Armor: <b>${meStats.armor}</b><br>
      Home: <b>${meStats.home}</b><br>
+     Passive XP: <b>${meStats.passiveXpPerSecond} XP/s</b><br>
      Gold <b>${meStats.gold}</b><br>
-     Lv <b>${meStats.level}</b> XP ${meStats.xp}/${meStats.level * 25}`;
+     Lv <b>${meStats.level}</b> XP ${meStats.xp}/${requiredXP}`;
   onlineUl.innerHTML = '';
   Object.values(state.players).forEach(p => {
     const li = document.createElement('li');
