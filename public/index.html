@@ -316,7 +316,7 @@ function drawMap(){
     for(let x=me.x-R;x<=me.x+R;x++){
       const k=`${x},${y}`;const t=state.tiles[k]||{type:'wilderness',monstersRemaining:0};
       const d=document.createElement('div');
-      d.className=`tile ${t.type}${t.cleared?' cleared':' wilderness'}`;
+      d.className = `tile ${t.type} ${t.cleared ? 'cleared' : 'wilderness'}`;
       if(x===0&&y===0)d.textContent='village';
       const ps=Object.values(state.players).filter(p=>p.x===x&&p.y===y);
       ps.forEach((p,i)=>{const dot=document.createElement('div');dot.className='dot'+(i?' stack':'');dot.style.background=p.color;d.appendChild(dot);if(p.id===myId)d.classList.add('you')});
@@ -326,7 +326,10 @@ function drawMap(){
         const adj=Math.abs(x-me.x)+Math.abs(y-me.y);
         if(adj===1) sock.emit('moveTo',{x,y});
         else if(x===me.x&&y===me.y&&t.monstersRemaining) startBattle(x,y,t.monstersRemaining);
-        else if(x===0&&y===0&&x===me.x&&y===me.x) openVillage();
+        else if (x === 0 && y === 0 && x === me.x && y === me.y) {
+          openVillage();
+        }
+
       };
       mapDiv.appendChild(d);
     }
