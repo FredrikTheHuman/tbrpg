@@ -313,33 +313,67 @@ function refreshSidebar() {
     onlineUl.appendChild(li);
   });
 }
-function drawMap(){
-  const me=state.players[myId]; if(!me)return;
-  mapDiv.style.gridTemplateColumns=`repeat(${SIZE},var(--tile))`;
-  mapDiv.innerHTML='';
-  for(let y=me.y-R;y<=me.y+R;y++){
-    for(let x=me.x-R;x<=me.x+R;x++){
-      const k=`${x},${y}`;const t=state.tiles[k]||{type:'wilderness',monstersRemaining:0};
-      const d=document.createElement('div');
-      d.className = `tile ${t.type} ${t.cleared ? 'cleared' : 'wilderness'}`;
-      if(x===0&&y===0)d.textContent='village';
-      const ps=Object.values(state.players).filter(p=>p.x===x&&p.y===y);
-      ps.forEach((p,i)=>{const dot=document.createElement('div');dot.className='dot'+(i?' stack':'');dot.style.background=p.color;d.appendChild(dot);if(p.id===myId)d.classList.add('you')});
-      if(t.monstersRemaining&&!t.cleared&&x===me.x&&y===me.y)
-        d.title=`${t.monstersRemaining} monsters`;
-      d.onclick=()=>{
-        const adj=Math.abs(x-me.x)+Math.abs(y-me.y);
-        if(adj===1) sock.emit('moveTo',{x,y});
-        else if(x===me.x&&y===me.y&&t.monstersRemaining) startBattle(x,y,t.monstersRemaining);
-        else if (x === 0 && y === 0 && x === me.x && y === me.y) {
-          openVillage();
-        }
+function drawMap() {
+  const me = state.players[myId];
+  if (!me) return;
 
+  // ---- tweak these two ----
+  const MAX_RING = 8;  // after this ring, darkness stops increasing
+  const MIN_RED  = 80; // 0=black, 255=full red (lower = darker max)
+  // -------------------------
+
+  mapDiv.style.gridTemplateColumns = `repeat(${SIZE},var(--tile))`;
+  mapDiv.innerHTML = '';
+
+  for (let y = me.y - R; y <= me.y + R; y++) {
+    for (let x = me.x - R; x <= me.x + R; x++) {
+      const k = `${x},${y}`;
+      const t = state.tiles[k] || { type: 'wilderness', monstersRemaining: 0, cleared: false };
+
+      const d = document.createElement('div');
+      d.className = `tile ${t.type} ${t.cleared ? 'cleared' : 'wilderness'}`;
+
+      // village label
+      if (x === 0 && y === 0) d.textContent = 'village';
+
+      // === Ring-based danger color (only for uncleared wilderness) ===
+      if (t.type !== 'village' && !t.cleared) {
+        const ring = Math.abs(x) + Math.abs(y);              // ring index from (0,0)
+        const clampedRing = Math.min(ring, MAX_RING);
+        const red = Math.floor(
+          255 - (clampedRing / MAX_RING) * (255 - MIN_RED)
+        );
+        d.style.backgroundColor = `rgb(${red}, 0, 0)`;
+      }
+
+      // players on this tile
+      const ps = Object.values(state.players).filter(p => p.x === x && p.y === y);
+      ps.forEach((p, i) => {
+        const dot = document.createElement('div');
+        dot.className = 'dot' + (i ? ' stack' : '');
+        dot.style.background = p.color;
+        d.appendChild(dot);
+        if (p.id === myId) d.classList.add('you');
+      });
+
+      // tooltip if you're standing on monsters
+      if (t.monstersRemaining && !t.cleared && x === me.x && y === me.y) {
+        d.title = `${t.monstersRemaining} monsters`;
+      }
+
+      // click behavior
+      d.onclick = () => {
+        const adj = Math.abs(x - me.x) + Math.abs(y - me.y);
+        if (adj === 1) sock.emit('moveTo', { x, y });
+        else if (x === me.x && y === me.y && t.monstersRemaining) startBattle(x, y, t.monstersRemaining);
+        else if (x === 0 && y === 0 && x === me.x && y === me.y) openVillage();
       };
+
       mapDiv.appendChild(d);
     }
   }
 }
+
 
 /* ---------- battle ---------- */
 let tileX,tileY,monstersLeft,enemy;
