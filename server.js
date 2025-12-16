@@ -110,7 +110,7 @@ setInterval(() => {
   let growth = 0;
   const N = clearedTiles();
   for (let i = 1; i <= N; i++) {
-    growth += 0.05/i;
+    growth += 0.01/i;
   }
   village.growthClock += growth;
   if (village.growthClock >= 1) {
@@ -123,15 +123,39 @@ setInterval(() => {
 
 /* ═══════════════ 5. BROADCAST STATE ═════════════ */
 
-function buildState () {
-  return {
-    tiles   : Object.fromEntries(world),
-    players : Object.fromEntries(players),
-    village
-  };
-}
-function broadcast () { io.emit('state', buildState()); }
+const VIEW_SIZE = 15;
+const VIEW_R = Math.floor(VIEW_SIZE / 2);
 
+function buildTilesView(cx, cy) {
+  const tiles = {};
+  for (let y = cy - VIEW_R; y <= cy + VIEW_R; y++) {
+    for (let x = cx - VIEW_R; x <= cx + VIEW_R; x++) {
+      const t = ensureTile(x, y);       // lazily create if missing
+      tiles[key(x, y)] = t;             // send only this window
+    }
+  }
+  return tiles;
+}
+
+function buildPlayersState() {
+  return Object.fromEntries(players);
+}
+
+function broadcast() {
+  const playersState = buildPlayersState();
+
+  // Send a personalized state to each connected socket
+  for (const [socketId, socket] of io.of("/").sockets) {
+    const p = players.get(socketId);
+    if (!p) continue; // not joined yet
+
+    socket.emit('state', {
+      tiles: buildTilesView(p.x, p.y),
+      players: playersState,
+      village
+    });
+  }
+}
 /* ═══════════════ 6. SOCKET.IO HANDLERS ══════════ */
 
 io.on('connection', sock => {
