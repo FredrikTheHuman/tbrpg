@@ -767,8 +767,8 @@ function renderFromState(s) {
   if (!state || !myId) return;
 
   // Map + sidebar (heavy DOM)
-  updateTopLevels();
   refreshSidebar();
+  updateTopLevels();
   drawMap();
 
   // Village UI (only if village exists)
