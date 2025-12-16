@@ -266,7 +266,7 @@ function gain(xp, gold){
   meStats.gold += gold;
 
   while (true) {
-    const requiredXP = Math.round(20 + 13 * meStats.level + 1.24 ** meStats.level);
+    const requiredXP = Math.round(20 + 13 * meStats.level + 1.395 ** meStats.level);
     if (meStats.xp >= requiredXP) {
       meStats.xp -= requiredXP;
       meStats.level++;
@@ -301,10 +301,10 @@ const vDesc=document.getElementById('vDesc');
 const villageList=document.getElementById('villageList');
 const shopDiv=document.getElementById('shop');
 const desc=[
-  [0,199,'A sleepy hamlet surrounded by wilderness.'],
-  [200,499,'A growing village with fresh wooden palisades.'],
-  [500,999,'A bustling town, smoke rising from many chimneys.'],
-  [1000,999999999,'A thriving city with stone walls and busy markets.']
+  [0,299,'A sleepy hamlet surrounded by wilderness.'],
+  [300,999,'A growing village with fresh wooden palisades.'],
+  [1000,9999,'A bustling town, smoke rising from many chimneys.'],
+  [10000,999999999,'A thriving city with stone walls and busy markets.']
 ];
 function addLog(t){logBox.value+=t;logBox.scrollTop=logBox.scrollHeight;}
 
@@ -507,7 +507,7 @@ document.getElementById('dummyBtn').onclick = () => {
 /* ---------- shop render (very simple) ------------ */
 function popForTier(t) {
   if (t === 0) return 0; // allow tier 0 from the start
-  return Math.round(100 + 150 * t + 1.25 ** t);
+  return Math.round(150 * t + 1.25 ** t);
 }
 
 
