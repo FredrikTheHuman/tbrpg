@@ -631,17 +631,32 @@ function updateHomeownersList() {
 }
 
 
-sock.on('state',s=>{
-  state=s; if(myId){refreshSidebar();drawMap();}
-  if(s.village){
-    const pop=s.village.population;
-    vPop.textContent=`Pop ${pop} (${ (1/ (clearedTiles()*0.01||0.01)).toFixed(1)} s/+1)`;
-    const d=desc.find(r=>pop>=r[0]&&pop<=r[1]); if(d)vDesc.textContent=d[2];
+// Throttled state rendering (Optimization #3)
+let latestState = null;
+let renderScheduled = false;
+
+function renderFromState(s) {
+  state = s;
+  if (!state || !myId) return;
+
+  // Map + sidebar (heavy DOM)
+  refreshSidebar();
+  drawMap();
+
+  // Village UI (only if village exists)
+  if (s.village) {
+    const pop = s.village.population;
+
+    vPop.textContent = `Pop ${pop} (${(1 / (clearedTiles() * 0.01 || 0.01)).toFixed(1)} s/+1)`;
+    const d = desc.find(r => pop >= r[0] && pop <= r[1]);
+    if (d) vDesc.textContent = d[2];
+
     rebuildShop(pop);
     rebuildHousingShop();
     updateHomeownersList();
+
     // list players inside
-    villageList.innerHTML='';
+    villageList.innerHTML = '';
     Object.values(s.players).filter(p => p.inVillage).forEach(p => {
       const li = document.createElement('li');
       const homeName = (p.homeTier >= 0 && homes[p.homeTier]) ? homes[p.homeTier].name : "No home";
@@ -649,9 +664,31 @@ sock.on('state',s=>{
       li.style.color = p.color;
       villageList.appendChild(li);
     });
-
   }
+}
+
+sock.on('state', (s) => {
+  latestState = s;
+  if (renderScheduled) return;
+
+  renderScheduled = true;
+
+  // Option A: hard throttle (good default)
+  setTimeout(() => {
+    renderScheduled = false;
+    if (latestState) renderFromState(latestState);
+  }, 80); // 80ms ~ 12.5 FPS
+
+  // Option B (alternative): animation frame (uncomment if you prefer)
+  /*
+  requestAnimationFrame(() => {
+    renderScheduled = false;
+    if (latestState) renderFromState(latestState);
+  });
+  */
 });
+
+
 function clearedTiles(){let n=0;for(const t of Object.values(state.tiles))if(t.cleared)n++;return n;}
 
 /* ---------- socket updates ---------- */
