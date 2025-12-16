@@ -52,20 +52,35 @@ function ensureTile(x, y) {
 /* ═══════════════ 2. MONSTER TABLE ═══════════════ */
 
 const monsters = [
-  { name:'Rat',         hp: 20,  atk:  3, xp: 3, gold:  1, weight: 1 },
-  { name:'Green Slime', hp: 115,  atk:  2, xp: 23, gold:  3, weight: 2 },
-  { name:'Goblin',      hp:225,  atk: 13, xp: 44, gold: 8, weight: 3 },
-  { name:'Orc',         hp:440,  atk: 25, xp: 78, gold: 25, weight:  4 },
-  { name:'Troll',       hp:800,  atk: 40, xp:141, gold: 51, weight:  5 },
-  { name:'Wither',       hp:334,  atk: 99, xp:333, gold: 99, weight:  6 },
-  { name:'Gryphon',       hp:1106,  atk: 125, xp:797, gold: 375, weight:  7 },
-  { name:'Dragon',       hp:8000,  atk: 340, xp:3543, gold: 4500, weight:  8 },
-  { name:'Titan',       hp:38000,  atk: 349, xp:14012, gold: 7431, weight:  9 },
-  { name:'SCRAMLER',       hp:14800,  atk: 777, xp:27041, gold:13321, weight:  10 },
-  { name:'blasphemer',       hp:3500,  atk: 99999, xp:99999, gold: 99999, weight:  11 },
-
-
+  { name:'Rat',           hp: 20,        atk: 3,        xp: 4,        gold: 1,        weight: 1 },
+  { name:'Green Slime',   hp: 115,       atk: 2,        xp: 26,       gold: 3,        weight: 2 },
+  { name:'Goblin',        hp: 225,       atk: 13,       xp: 49,       gold: 8,        weight: 3 },
+  { name:'Orc',           hp: 440,       atk: 25,       xp: 88,       gold: 15,       weight: 4 },
+  { name:'Troll',         hp: 800,       atk: 40,       xp: 171,      gold: 31,       weight: 5 },
+  { name:'Wither',        hp: 334,       atk: 99,       xp: 393,      gold: 67,       weight: 6 },
+  { name:'Gryphon',       hp: 1106,      atk: 125,      xp: 797,      gold: 375,      weight: 7 },
+  { name:'Dragon',        hp: 8000,      atk: 340,      xp: 3543,     gold: 4500,     weight: 8 },
+  { name:'Titan',         hp: 67000,     atk: 949,      xp: 14012,    gold: 7431,     weight: 9 },
+  { name:'SCRAMLER',      hp: 1480000,   atk: 77777,    xp: 27041,    gold: 13321,    weight: 10 },
+  { name:'Blasphemer',    hp: 35000000,  atk: 99999,    xp: 99999,    gold: 99999,    weight: 11 },
+  { name:'ZLAGO',         hp: 2500000000,   atk: 99999,    xp: 999999,   gold: 150000,   weight: 12 },
+  { name:'Void Herald',   hp: 80000000000,   atk: 150000,   xp: 1500000,  gold: 300000,   weight: 13 },
+  { name:'Abyss Warden',  hp: 180000000000,  atk: 220000,   xp: 2800000,  gold: 600000,   weight: 14 },
+  { name:'Star Devourer', hp: 4200000000000,  atk: 350000,   xp: 5200000,  gold: 1200000,  weight: 15 },
+  { name:'World Eater',   hp: 9000000000000,  atk: 600000,   xp: 10000000, gold: 2500000,  weight: 16 },
+  { name:'Eclipse King',  hp: 18000000000000, atk: 950000,   xp: 20000000, gold: 5000000,  weight: 17 },
+  { name:'Reality Tear',  hp: 36000000000000, atk: 1500000,  xp: 40000000, gold: 10000000, weight: 18 },
+  { name:'Chrono Beast',  hp: 72000000000000, atk: 2300000,  xp: 80000000, gold: 20000000, weight: 19 },
+  { name:'Null Emperor',  hp: 140000000000000,atk: 3500000,  xp: 160000000,gold: 40000000, weight: 20 },
+  { name:'Omega Seraph',  hp: 280000000000000,atk: 5500000,  xp: 320000000,gold: 80000000, weight: 21 },
+  { name:'Final Witness', hp: 560000000000000,atk: 8500000,  xp: 640000000,gold: 160000000,weight: 22 },
+  { name:'Paradox Lord',  hp: 1120000000000000,atk:13000000, xp: 1280000000,gold: 320000000,weight: 23 },
+  { name:'Singularity',   hp: 2240000000000000,atk:20000000, xp: 2560000000,gold: 640000000,weight: 24 },
+  { name:'The End',       hp: 4480000000000000,atk:30000000, xp: 5120000000,gold: 1280000000,weight: 25 },
+  { name:'Unmaker',       hp: 9000000000000000,atk:45000000, xp: 10000000000,gold: 2500000000,weight: 26 },
+  { name:'ABSENCE',       hp: 18000000000000000,atk:70000000,xp: 20000000000,gold: 5000000000,weight: 27 }
 ];
+
 
 function rollMonster(tile) {
   const pool = tile.spawnPool || [0]; // fallback to Rat if not set
@@ -83,7 +98,7 @@ const players = new Map();   // id → { id, name, color, x, y, inVillage }
 
 /* ═══════════════ 4. VILLAGE & ECONOMY ═══════════ */
 
-const village   = { population: 100, growthClock: 0 };
+const village   = { population: 200, growthClock: 0 };
 const weaponTiers = ['Wooden Club', 'Stone Knife', 'Bronze Dagger', 'Iron Sword'];
 const armorTiers  = ['Cloth Tunic', 'Padded Vest', 'Leather Armor', 'Chain Shirt'];
 

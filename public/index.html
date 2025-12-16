@@ -197,13 +197,40 @@ const armorTiers = [
 ];
 
 const homes = [
-  { name: "Hut",      cost: 250,     xpPerSec: 1 },
-  { name: "Cottage",  cost: 1000,    xpPerSec: 3 },
-  { name: "House",    cost: 5000,    xpPerSec: 5 },
-  { name: "Manor",    cost: 30000,   xpPerSec: 10 },
-  { name: "Mansion",  cost: 250000,  xpPerSec: 50 },
-  { name: "Castle",   cost: 1000000, xpPerSec: 100 }
+  // very simple – easy to understand for everyone
+  { name: "Tent",                cost: 5,           xpPerSec: 1 },
+  { name: "Sleeping Bag",        cost: 20,          xpPerSec: 2 },
+  { name: "Wooden Shack",        cost: 60,          xpPerSec: 3 },
+  { name: "Small Hut",           cost: 150,         xpPerSec: 4 },
+  { name: "Hut",                 cost: 300,         xpPerSec: 5 },
+
+  // early game – everyday words
+  { name: "Small House",         cost: 800,         xpPerSec: 8 },
+  { name: "House",               cost: 1500,        xpPerSec: 12 },
+  { name: "Big House",           cost: 3500,        xpPerSec: 18 },
+  { name: "Stone House",         cost: 8000,        xpPerSec: 25 },
+  { name: "Large Stone House",   cost: 18000,       xpPerSec: 35 },
+
+  // mid game – still understandable
+  { name: "Manor",               cost: 45000,       xpPerSec: 50 },
+  { name: "Big Manor",           cost: 120000,      xpPerSec: 80 },
+  { name: "Small Castle",        cost: 300000,      xpPerSec: 120 },
+  { name: "Castle",              cost: 800000,      xpPerSec: 180 },
+  { name: "Great Castle",        cost: 2000000,     xpPerSec: 260 },
+
+  // late game – clearly “cool”
+  { name: "Royal Castle",        cost: 6000000,     xpPerSec: 380 },
+  { name: "Sky Castle",          cost: 20000000,    xpPerSec: 550 },
+  { name: "Dragon Castle",       cost: 80000000,    xpPerSec: 800 },
+  { name: "World Tower",         cost: 350000000,   xpPerSec: 1200 },
+  { name: "Reality Fortress",    cost: 1200000000,  xpPerSec: 1800 },
+
+  // endgame – insane on purpose
+  { name: "Infinity Palace",     cost: 2500000000,  xpPerSec: 2600 },
+  { name: "Void Citadel",        cost: 4000000000,  xpPerSec: 3600 },
+  { name: "ABSENCE Monument",    cost: 5000000000,  xpPerSec: 5000 }
 ];
+
 
 /* ---------- player local stats ---------- */
 const meStats = {
@@ -573,6 +600,7 @@ function rebuildHousingShop() {
     if (meStats.gold >= home.cost) {
       meStats.gold -= home.cost;
       meStats.homeTier = nextTier;
+      sock.emit('setHomeTier', { homeTier: meStats.homeTier });
       refreshSidebar();
       rebuildHousingShop();
       updateHomeownersList();
@@ -607,9 +635,14 @@ sock.on('state',s=>{
     updateHomeownersList();
     // list players inside
     villageList.innerHTML='';
-    Object.values(s.players).filter(p=>p.inVillage).forEach(p=>{
-      const li=document.createElement('li');li.textContent=p.name;li.style.color=p.color;villageList.appendChild(li);
+    Object.values(s.players).filter(p => p.inVillage).forEach(p => {
+      const li = document.createElement('li');
+      const homeName = (p.homeTier >= 0 && homes[p.homeTier]) ? homes[p.homeTier].name : "No home";
+      li.textContent = `${p.name} — ${homeName}`;
+      li.style.color = p.color;
+      villageList.appendChild(li);
     });
+
   }
 });
 function clearedTiles(){let n=0;for(const t of Object.values(state.tiles))if(t.cleared)n++;return n;}
