@@ -189,6 +189,25 @@ let myId = null, state = null;
 // ---- profile persistence (token + stats) ----
 const TOKEN_KEY = "tbrpg_token_v1";
 
+function updateTopLevels() {
+  if (!state || !state.players) return;
+
+  const rows = Object.values(state.players)
+    .map(p => ({
+      name: p.name || "???",
+      level: Number(p.level) || 1
+    }))
+    .sort((a,b) => b.level - a.level)
+    .slice(0, 10);
+
+  topLevelsOl.innerHTML = '';
+  for (const r of rows) {
+    const li = document.createElement('li');
+    li.textContent = `Lv ${r.level} — ${r.name}`;
+    topLevelsOl.appendChild(li);
+  }
+}
+
 function getSavedToken() {
   return localStorage.getItem(TOKEN_KEY) || "";
 }
@@ -768,6 +787,7 @@ function renderFromState(s) {
 
   // Map + sidebar (heavy DOM)
   refreshSidebar();
+  updateTopLevels();
   drawMap();
 
   // Village UI (only if village exists)
