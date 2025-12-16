@@ -154,7 +154,7 @@ function showToast(msg, ms = 1200) {
   toastTimer = setTimeout(() => toast.classList.remove('show'), ms);
 }
 
-function spawnGoldParticles(fromEl, count = 14) {
+function spawnGoldParticles(fromEl, count = Math.min(200, enemy.gold)) {
   const r = fromEl.getBoundingClientRect();
   const cx = r.left + r.width * 0.5;
   const cy = r.top  + r.height * 0.35; // litt over midten
