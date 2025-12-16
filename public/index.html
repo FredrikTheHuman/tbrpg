@@ -345,9 +345,18 @@ function drawMap() {
   if (!me) return;
 
   // ---- tweak these two ----
-  const MAX_RING = 27;  // after this ring, darkness stops increasing
-  const MIN_RED  = 10; // 0=black, 255=full red (lower = darker max)
+  const MAX_RING = 27; // after this ring, darkness stops increasing
+  const MIN_RED  = 10; // lower = darker max
   // -------------------------
+
+  // 1) Group players by tile once (O(players))
+  const playersByTile = new Map(); // "x,y" -> array of players
+  for (const p of Object.values(state.players)) {
+    const pk = `${p.x},${p.y}`;
+    let arr = playersByTile.get(pk);
+    if (!arr) { arr = []; playersByTile.set(pk, arr); }
+    arr.push(p);
+  }
 
   mapDiv.style.gridTemplateColumns = `repeat(${SIZE},var(--tile))`;
   mapDiv.innerHTML = '';
@@ -363,18 +372,16 @@ function drawMap() {
       // village label
       if (x === 0 && y === 0) d.textContent = 'village';
 
-      // === Ring-based danger color (only for uncleared wilderness) ===
+      // ring-based danger color (only for uncleared wilderness)
       if (t.type !== 'village' && !t.cleared) {
-        const ring = Math.abs(x) + Math.abs(y);              // ring index from (0,0)
+        const ring = Math.abs(x) + Math.abs(y); // same rule you used
         const clampedRing = Math.min(ring, MAX_RING);
-        const red = Math.floor(
-          255 - (clampedRing / MAX_RING) * (255 - MIN_RED)
-        );
+        const red = Math.floor(255 - (clampedRing / MAX_RING) * (255 - MIN_RED));
         d.style.backgroundColor = `rgb(${red}, 0, 0)`;
       }
 
-      // players on this tile
-      const ps = Object.values(state.players).filter(p => p.x === x && p.y === y);
+      // 2) Place players in O(1) lookup
+      const ps = playersByTile.get(k) || [];
       ps.forEach((p, i) => {
         const dot = document.createElement('div');
         dot.className = 'dot' + (i ? ' stack' : '');
@@ -388,7 +395,6 @@ function drawMap() {
         d.title = `${t.monstersRemaining} monsters`;
       }
 
-      // click behavior
       d.onclick = () => {
         const adj = Math.abs(x - me.x) + Math.abs(y - me.y);
         if (adj === 1) sock.emit('moveTo', { x, y });
@@ -400,6 +406,7 @@ function drawMap() {
     }
   }
 }
+
 
 
 /* ---------- battle ---------- */
