@@ -32,9 +32,32 @@
                box-shadow:0 4px 10px rgba(0,0,0,.2);text-align:center}
  #vPop{font-size:24px;margin:6px 0}
  #shop button{margin:4px 6px;padding:6px 12px;border:0;border-radius:8px;cursor:pointer}
+ /* --- toast / notifications --- */
+#toast {
+  position: fixed;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(20, 20, 30, 0.92);
+  color: #fff;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  box-shadow: 0 8px 18px rgba(0,0,0,.25);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease, transform 160ms ease;
+  z-index: 9999;
+}
+#toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
 </style>
 
 <h1>CO-OP TBRPG – V2 16.12.2025</h1>
+<div id="toast"></div>
 <label>Name:<input id="nameBox" placeholder="your name"></label>
 <button id="joinBtn">Join world</button>
 
@@ -103,6 +126,15 @@
 </div>
 <script src="/socket.io/socket.io.js"></script>
 <script>
+const toast = document.getElementById('toast');
+let toastTimer = null;
+
+function showToast(msg, ms = 1200) {
+  toast.textContent = msg;
+  toast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove('show'), ms);
+}
 /* ========== Socket & global state ========== */
 const sock = io();
 let myId = null, state = null;
@@ -295,6 +327,7 @@ function gain(xp, gold){
       meStats.xp -= requiredXP;
       meStats.level++;
       meStats.hp = meStats.hpMax;
+      showToast(`LEVEL UP!  Lv ${meStats.level}`);
       addLog(`*** Level up! Now Lv ${meStats.level}\n`);
       refreshSidebar();
     } else {
@@ -351,7 +384,7 @@ document.getElementById('joinBtn').onclick = () => {
 /* ---------- map drawing ---------- */
 const SIZE=15,R=Math.floor(SIZE/2);
 function refreshSidebar() {
-  const requiredXP = Math.round(20 + 13 * meStats.level + 1.24 ** meStats.level);
+  const requiredXP = Math.round(17 + 13 * meStats.level + 1.51 ** meStats.level);
 
   sumBox.innerHTML =
     `HP <b>${meStats.hp}</b> / ${meStats.hpMax}<br>
@@ -491,7 +524,7 @@ attackBtn.onclick=()=>{
   meStats.hp = meStats.hpMax;
 
   scheduleProfileSave();
-  
+
   refreshSidebar(); // Update visible stats
   endBattle();      // Show the map again (player will now be at 0,0)
   return;
@@ -505,6 +538,10 @@ function victory() {
   refreshSidebar();
   sock.emit('enemyDefeated', { x: tileX, y: tileY });
   monstersLeft--;
+  if (monstersLeft === 0) {
+    showToast('AREA SECURED');
+    addLog('*** Area secured.\n');
+  }
 
   leaveBtn.disabled = false; // ✅ Enable leave again after enemy is defeated
 
@@ -513,6 +550,7 @@ function victory() {
       sock.emit('requestEnemy', { x: tileX, y: tileY });
     }, 400);
   }
+
 }
 
 function openVillage(){
