@@ -154,7 +154,7 @@ function showToast(msg, ms = 1200) {
   toastTimer = setTimeout(() => toast.classList.remove('show'), ms);
 }
 
-function spawnGoldParticles(fromEl, count = Math.min(200, enemy.gold)) {
+function spawnGoldParticles(fromEl, count = Math.min(200, count = Math.min(200, enemy.gold))) {
   const r = fromEl.getBoundingClientRect();
   const cx = r.left + r.width * 0.5;
   const cy = r.top  + r.height * 0.35; // litt over midten
@@ -551,7 +551,7 @@ attackBtn.onclick=()=>{
   eHp.style.width=Math.round(enemy.hp/enemy.maxHp*100)+'%';
   addLog(`You hit for ${pdmg}\n`);
   if (enemy.hp === 0) {
-    spawnGoldParticles(document.getElementById('eName'), 18); // eller eHp / enemy card
+    spawnGoldParticles(document.getElementById('eName'), count = Math.min(200, enemy.gold)); // eller eHp / enemy card
     victory();
     return;
   }
