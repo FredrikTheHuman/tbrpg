@@ -110,7 +110,7 @@ setInterval(() => {
   let growth = 0;
   const N = clearedTiles();
   for (let i = 1; i <= N; i++) {
-    growth += 0.01/i;
+    growth += 0.05/i;
   }
   village.growthClock += growth;
   if (village.growthClock >= 1) {
