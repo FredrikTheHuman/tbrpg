@@ -82,10 +82,10 @@ const monsters = [
   { name:'Rat',           hp: 20,               atk: 3,        xp: 4,           gold: 1,           weight: 1 },
   { name:'Green Slime',   hp: 115,              atk: 2,        xp: 26,          gold: 3,           weight: 2 },
   { name:'Goblin',        hp: 225,              atk: 13,       xp: 49,          gold: 8,           weight: 3 },
-  { name:'Orc',           hp: 440,              atk: 25,       xp: 88,          gold: 15,          weight: 4 },
-  { name:'Troll',         hp: 800,              atk: 40,       xp: 171,         gold: 31,          weight: 5 },
+  { name:'Orc',           hp: 440,              atk: 25,       xp: 89,          gold: 15,          weight: 4 },
+  { name:'Troll',         hp: 800,              atk: 40,       xp: 179,         gold: 31,          weight: 5 },
   { name:'Wither',        hp: 334,              atk: 99,       xp: 393,         gold: 67,          weight: 6 },
-  { name:'Gryphon',       hp: 1106,             atk: 125,      xp: 797,         gold: 375,         weight: 7 },
+  { name:'Gryphon',       hp: 2106,             atk: 167,      xp: 797,         gold: 175,         weight: 7 },
   { name:'Dragon',        hp: 8000,             atk: 340,      xp: 3543,        gold: 4500,        weight: 8 },
   { name:'Titan',         hp: 67000,            atk: 949,      xp: 14012,       gold: 7431,        weight: 9 },
   { name:'SCRAMLER',      hp: 1480000,          atk: 77777,    xp: 27041,       gold: 13321,       weight: 10 },
@@ -170,7 +170,7 @@ function clearedTiles() {
 setInterval(() => {
   let growth = 0;
   const N = clearedTiles();
-  for (let i = 1; i <= N; i++) growth += 0.01 / i;
+  for (let i = 1; i <= N; i++) growth += 0.015 / i;
 
   village.growthClock += growth;
   if (village.growthClock >= 1) {
