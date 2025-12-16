@@ -104,8 +104,32 @@
 <script src="/socket.io/socket.io.js"></script>
 <script>
 /* ========== Socket & global state ========== */
-const sock=io();
-let myId=null,state=null;
+const sock = io();
+let myId = null, state = null;
+
+// ---- profile persistence (token + stats) ----
+const TOKEN_KEY = "tbrpg_token_v1";
+
+function getSavedToken() {
+  return localStorage.getItem(TOKEN_KEY) || "";
+}
+function setSavedToken(t) {
+  if (t) localStorage.setItem(TOKEN_KEY, t);
+}
+
+let pendingSave = false;
+function scheduleProfileSave() {
+  if (pendingSave) return;
+  pendingSave = true;
+  setTimeout(() => {
+    pendingSave = false;
+    const token = getSavedToken();
+    if (!token) return;
+    sock.emit("saveProfile", { token, stats: meStats });
+  }, 750); // debounce
+}
+// --------------------------------------------
+
 const weaponTiers = [
   'Wooden Club',
   'Sharpened Stick',
@@ -277,6 +301,8 @@ function gain(xp, gold){
       break;
     }
   }
+  scheduleProfileSave();
+
 }
 
 
@@ -309,13 +335,17 @@ const desc=[
 function addLog(t){logBox.value+=t;logBox.scrollTop=logBox.scrollHeight;}
 
 /* ---------- join ---------- */
-document.getElementById('joinBtn').onclick=()=>{
-  const n=document.getElementById('nameBox').value.trim();
-  if(!n)return alert('Pick a name!');
-  sock.emit('join',{name:n});
-  document.getElementById('joinBtn').disabled=
-  document.getElementById('nameBox').disabled=true;
-  mapView.style.display='flex';
+document.getElementById('joinBtn').onclick = () => {
+  const n = document.getElementById('nameBox').value.trim();
+  if (!n) return alert('Pick a name!');
+
+  const token = getSavedToken(); // may be empty first time
+  sock.emit('join', { name: n, token });
+
+  document.getElementById('joinBtn').disabled =
+  document.getElementById('nameBox').disabled = true;
+
+  mapView.style.display = 'flex';
 };
 
 /* ---------- map drawing ---------- */
@@ -460,6 +490,8 @@ attackBtn.onclick=()=>{
   meStats.gold = 0;
   meStats.hp = meStats.hpMax;
 
+  scheduleProfileSave();
+  
   refreshSidebar(); // Update visible stats
   endBattle();      // Show the map again (player will now be at 0,0)
   return;
@@ -498,12 +530,13 @@ document.getElementById('healBtn').onclick = () => {
     meStats.hp = meStats.hpMax;
     refreshSidebar();
     addLog(`Healed for ${cost}g.\n`);
+    scheduleProfileSave();
   } else {
     addLog(`Not enough gold to heal (${cost}g needed).\n`);
   }
 }
 sock.on('healed',()=>{meStats.hp=meStats.hpMax;refreshSidebar();});
-document.getElementById('herbBtn').onclick=()=>{if(meStats.hp<meStats.hpMax){meStats.hp++;refreshSidebar();}}
+document.getElementById('herbBtn').onclick=()=>{if(meStats.hp<meStats.hpMax){meStats.hp++;refreshSidebar();scheduleProfileSave();}}
 
 /* training dummy button */
 document.getElementById('dummyBtn').onclick = () => {
@@ -565,6 +598,7 @@ function rebuildShop(pop) {
         addLog(`Bought ${w} and equipped it.\n`);
         refreshSidebar();
         rebuildShop(pop);
+        scheduleProfileSave();
       }
     };
     shopDiv.appendChild(bw);
@@ -583,6 +617,7 @@ function rebuildShop(pop) {
         addLog(`Bought ${a} and equipped it.\n`);
         refreshSidebar();
         rebuildShop(pop);
+        scheduleProfileSave();
       }
     };
     shopDiv.appendChild(ba);
@@ -612,6 +647,7 @@ function rebuildHousingShop() {
       rebuildHousingShop();
       updateHomeownersList();
       addLog(`You bought a ${home.name}! You now gain ${home.xpPerSec} XP/s.\n`);
+      scheduleProfileSave();
     }
   };
   shop.appendChild(btn);
@@ -699,5 +735,41 @@ setInterval(() => {
     gain(meStats.passiveXpPerSecond, 0);
   }
 }, 1000);
+
+sock.on("joined", ({ token, stats }) => {
+  // 1) store token locally
+  setSavedToken(token);
+
+  // 2) load saved stats into current session
+  if (stats) {
+    meStats.level = stats.level ?? meStats.level;
+    meStats.xp = stats.xp ?? meStats.xp;
+    meStats.gold = stats.gold ?? meStats.gold;
+    meStats.hp = stats.hp ?? meStats.hp;
+    meStats.weaponTier = stats.weaponTier ?? meStats.weaponTier;
+    meStats.armorTier = stats.armorTier ?? meStats.armorTier;
+    meStats.homeTier = stats.homeTier ?? meStats.homeTier;
+  }
+
+  refreshSidebar();
+  rebuildHousingShop();
+  updateHomeownersList();
+
+  // Immediately save once (optional but nice)
+  scheduleProfileSave();
+});
+
+// periodic autosave
+setInterval(() => {
+  if (getSavedToken()) scheduleProfileSave();
+}, 5000);
+
+// save on refresh / close (best effort)
+window.addEventListener("beforeunload", () => {
+  const token = getSavedToken();
+  if (!token) return;
+  sock.emit("saveProfile", { token, stats: meStats });
+});
+
 </script>
 
