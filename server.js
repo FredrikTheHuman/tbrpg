@@ -143,8 +143,17 @@ io.on('connection', sock => {
       name,
       color: nextColor(),
       x: 0, y: 0,
-      inVillage: false
+      inVillage: false,
+      homeTier: -1
     });
+    broadcast();
+  });
+
+  /*oppdatere hus*/
+  sock.on('setHomeTier', ({ homeTier }) => {
+    const p = players.get(sock.id);
+    if (!p) return;
+    p.homeTier = Number(homeTier);
     broadcast();
   });
 
