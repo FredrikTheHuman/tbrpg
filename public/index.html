@@ -84,8 +84,6 @@
   <div id="summary">
     <h3>You</h3><div id="sumBox">—</div>
     <h3>Players online</h3><ul id="onlineList"></ul>
-    <h3>Top levels</h3>
-    <ol id="topLevels"></ol>
 
   </div>
   <div id="map"></div>
@@ -189,24 +187,9 @@ let myId = null, state = null;
 // ---- profile persistence (token + stats) ----
 const TOKEN_KEY = "tbrpg_token_v1";
 
-function updateTopLevels() {
-  if (!state || !state.players) return;
 
-  const rows = Object.values(state.players)
-    .map(p => ({
-      name: p.name || "???",
-      level: Number(p.level) || 1
-    }))
-    .sort((a,b) => b.level - a.level)
-    .slice(0, 10);
 
-  topLevelsOl.innerHTML = '';
-  for (const r of rows) {
-    const li = document.createElement('li');
-    li.textContent = `Lv ${r.level} — ${r.name}`;
-    topLevelsOl.appendChild(li);
-  }
-}
+
 
 function getSavedToken() {
   return localStorage.getItem(TOKEN_KEY) || "";
@@ -425,7 +408,6 @@ const vPop=document.getElementById('vPop');
 const vDesc=document.getElementById('vDesc');
 const villageList=document.getElementById('villageList');
 const shopDiv=document.getElementById('shop');
-const topLevelsOl = document.getElementById('topLevels');
 const desc=[
   [0,299,'A sleepy hamlet surrounded by wilderness.'],
   [300,999,'A growing village with fresh wooden palisades.'],
@@ -787,7 +769,6 @@ function renderFromState(s) {
 
   // Map + sidebar (heavy DOM)
   refreshSidebar();
-  updateTopLevels();
   drawMap();
 
   // Village UI (only if village exists)
