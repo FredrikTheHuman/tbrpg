@@ -371,7 +371,7 @@ function gain(xp, gold){
   meStats.gold += gold;
 
   while (true) {
-    const requiredXP = Math.round(25 + 13 * meStats.level + 1.399 ** meStats.level);
+    const requiredXP = Math.round(25 + 13 * meStats.level + 1.391 ** meStats.level);
     if (meStats.xp >= requiredXP) {
       meStats.xp -= requiredXP;
       meStats.level++;
