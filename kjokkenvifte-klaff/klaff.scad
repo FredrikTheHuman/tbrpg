@@ -1,5 +1,6 @@
 // Reserveklaff for tilbakeslagsventilen i viftemotoren
-// IKEA HD UR01 60S (art.nr. 903.046.10, Whirlpool), originaldel merket "VNR0029514 >PP<"
+// IKEA UNDERVERK HD UR01 60S (art.nr. 903.046.10, Whirlpool/Elica), originaldel merket "VNR0029514 >PP<"
+// Originalen heter Elica VNR0029514A / Whirlpool C00861115 "Kontraspjeld Ø150".
 //
 // Parametrisk modell: mål den gamle klaffen (eller den hele av de to) og
 // juster verdiene under. Alle mål i mm.
@@ -8,20 +9,24 @@
 // Koordinater: hengselaksen ligger langs X, halvsirkelen i +Y, platen i Z=0..plate_t.
 
 /* [Hovedmål] */
-// Diameter på klaffen = lengden på den rette kanten, UTEN tappene
-diameter = 145;
+// Diameter på klaffen = lengden på den rette kanten, UTEN tappene (originalen: ca 137)
+diameter = 137;
 // Tykkelse på den flate platen
 plate_t = 1.2;
 
 /* [Hengsel] */
 // Diameter på hengselstangen langs den rette kanten
-rod_d = 4;
+rod_d = 3.5;
 // printed = tappene printes i ett med klaffen, wire = hull tvers gjennom stangen for en ståltråd som blir tapper
 pin_style = "printed"; // [printed, wire]
-// Diameter på tappene (printed). Mål tappen på den gamle klaffen / hullet i ventilringen
-pin_d = 3;
-// Hvor langt hver tapp stikker ut forbi enden av stangen
-pin_len = 4;
+// Diameter på tappene (printed). Finn den med målesettet (maalesett.stl)
+pin_d = 2.5;
+// Hvor langt hver tapp stikker ut forbi enden av stangen, inkludert kragen (originalen: ca 5)
+pin_len = 5;
+// Krage (litt tykkere ring) innerst på hver tapp, som på originalen. 0 = ingen krage
+pin_collar_d = 4;
+// Bredde på kragen langs tappen
+pin_collar_w = 1.2;
 // Hulldiameter for ståltråden (wire). 2 mm tråd -> ca 2.2
 wire_hole_d = 2.2;
 // Diameter på hengselstangen når pin_style = wire (må være tykkere enn rod_d for å få vegg rundt tråden)
@@ -41,17 +46,13 @@ cross_rib_offset = 7;
 // Retning på skråribbene, i grader fra hengselaksen (90 = rett ut fra midten)
 rib_angles = [60, 120];
 
-/* [Stoppknast] */
-// Den lille kroken/knasten i den ene enden av hengselet
-stop_tab = true;
-// 1 = høyre ende, -1 = venstre ende (sett med ribbene opp og hengselet borte fra deg)
-stop_tab_side = 1;
-// Hvor høyt knasten stikker opp fra platen
-stop_tab_h = 5;
-// Lengde langs hengselet
-stop_tab_w = 3;
-// Tykkelse
-stop_tab_t = 1.6;
+/* [Midtknast] */
+// Den lille knasten midt på den rette kanten, som på originalen
+center_tab = true;
+// Bredde langs hengselet
+center_tab_w = 8;
+// Hvor langt den stikker ut forbi hengselstangen
+center_tab_out = 2;
 
 /* [Annet] */
 // Speilvend delen (hvis klaffen du skal erstatte er speilvendt av den du måler på)
@@ -120,9 +121,18 @@ module ribs() {
                     [(r_out - rib_w / 2) * cos(a), (r_out - rib_w / 2) * sin(a)]);
 }
 
-module stop_knob() {
-    x0 = stop_tab_side > 0 ? R - stop_tab_w : -R;
-    translate([x0, -stop_tab_t / 2, 0]) cube([stop_tab_w, stop_tab_t, stop_tab_h]);
+module center_knob() {
+    translate([-center_tab_w / 2, -rod / 2 - center_tab_out, 0])
+        cube([center_tab_w, rod / 2 + center_tab_out, plate_t]);
+}
+
+module pin(side) {
+    x0 = side > 0 ? R - eps : -R - pin_len;
+    along_axis(pin_d, x0, x0 + pin_len + eps);
+    if (pin_collar_d > 0) {
+        xc = side > 0 ? R - eps : -R - pin_collar_w;
+        along_axis(pin_collar_d, xc, xc + pin_collar_w + eps);
+    }
 }
 
 module flap() {
@@ -132,11 +142,11 @@ module flap() {
                 half_disc(R, plate_t);
                 along_axis(rod, -R, R);
                 if (pin_style == "printed") {
-                    along_axis(pin_d, -R - pin_len, -R + eps);
-                    along_axis(pin_d, R - eps, R + pin_len);
+                    pin(-1);
+                    pin(1);
                 }
                 if (rib_h > 0) ribs();
-                if (stop_tab) stop_knob();
+                if (center_tab) center_knob();
             }
             if (pin_style == "wire")
                 teardrop_along_axis(wire_hole_d, -R - 1, R + 1);
