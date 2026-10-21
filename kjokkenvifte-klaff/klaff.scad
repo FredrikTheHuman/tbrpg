@@ -20,7 +20,7 @@ rod_d = 3.5;
 // printed = tappene printes i ett med klaffen, wire = hull tvers gjennom stangen for en ståltråd som blir tapper
 pin_style = "printed"; // [printed, wire]
 // Diameter på tappene (printed). Finn den med målesettet (maalesett.stl)
-pin_d = 2.5;
+pin_d = 2;
 // Hvor langt hver tapp stikker ut forbi enden av stangen, inkludert kragen (originalen: ca 5)
 pin_len = 5;
 // Krage (litt tykkere ring) innerst på hver tapp, som på originalen. 0 = ingen krage
