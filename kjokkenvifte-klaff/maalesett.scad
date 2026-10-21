@@ -1,13 +1,13 @@
 // Målesett for hengseltappene - for deg uten skyvelære
 //
 // Øverst: kam med liggende tapper (printes på samme måte som tappene på klaffen).
-//   Prøv tappene i hullene i ventilringen der klaffen henger. Den tykkeste som går
-//   lett inn og kan rotere fritt, er riktig pin_d.
-// Nederst: plate med hull. Stikk tappen på den gamle klaffen i hullene - det
+//   Hold kammen på høykant og stikk tappene én og én inn i det ledige hullet i ringen
+//   der klaffen satt. Den tykkeste som går lett inn uten å klemme, er riktig pin_d.
+// Nederst: plate med hull. Stikk en hel tapp fra den gamle klaffen i hullene - det
 //   minste hullet den går i, er tappens diameter.
-// Tallene er diameter i mm. Printes flatt uten support, tar ca 10 min.
+// Tallene er diameter i mm. Printes flatt uten support.
 
-sizes = [2.0, 2.25, 2.5, 2.75, 3.0, 3.25, 3.5, 3.75, 4.0];
+sizes = [1.5, 1.75, 2, 2.25, 2.5, 2.75, 3];
 spacing = 10;
 pin_len = 6;
 flat_bottom = 0.2;

@@ -10,7 +10,7 @@
 
 /* [Hovedmål] */
 // Diameter på klaffen = lengden på den rette kanten, UTEN tappene (originalen: ca 137)
-diameter = 137;
+diameter = 137; // [120:0.5:150]
 // Tykkelse på den flate platen
 plate_t = 1.2;
 
@@ -19,20 +19,22 @@ plate_t = 1.2;
 rod_d = 3.5;
 // printed = tappene printes i ett med klaffen, wire = hull tvers gjennom stangen for en ståltråd som blir tapper
 pin_style = "printed"; // [printed, wire]
-// Diameter på tappene (printed). Finn den med målesettet (maalesett.stl)
-pin_d = 2;
+// Diameter på tappene (printed). Velg tallet som passet på målesettet (maalesett.stl)
+pin_d = 2; // [1.5, 1.75, 2, 2.25, 2.5, 2.75, 3]
 // Hvor langt hver tapp stikker ut forbi enden av stangen, inkludert kragen (originalen: ca 5)
-pin_len = 5;
+pin_len = 5; // [2:0.5:10]
 // Krage (litt tykkere ring) innerst på hver tapp, som på originalen. 0 = ingen krage
 pin_collar_d = 4;
 // Bredde på kragen langs tappen
 pin_collar_w = 1.2;
-// Hulldiameter for ståltråden (wire). 2 mm tråd -> ca 2.2
-wire_hole_d = 2.2;
-// Diameter på hengselstangen når pin_style = wire (må være tykkere enn rod_d for å få vegg rundt tråden)
+// Tykkelse på metallstangen som blir tapper (wire). Hullet blir 0.2 mm større
+wire_d = 2; // [1.5, 1.75, 2, 2.25, 2.5, 2.75, 3]
+// Minste diameter på hengselstangen når pin_style = wire (gjøres tykkere automatisk ved behov)
 wire_rod_d = 5;
-// Hvor mye av undersiden på stang og tapper som flates av, så de står stødig på platen
+// Hvor mye av undersiden på hengselstangen som flates av, så den står stødig på platen
 flat_bottom = 0.4;
+// Hvor mye av undersiden på tappene som flates av (samme som på målesettet)
+pin_flat = 0.2;
 
 /* [Ribber] */
 // Høyde på ribbene over platen (0 = ingen ribber)
@@ -54,15 +56,18 @@ center_tab_w = 8;
 // Hvor langt den stikker ut forbi hengselstangen
 center_tab_out = 2;
 
-/* [Annet] */
-// Speilvend delen (hvis klaffen du skal erstatte er speilvendt av den du måler på)
-mirror_part = false;
+/* [Hidden] */
 $fn = 160;
+eps = 0.01;
 
 R = diameter / 2;
-rod = pin_style == "wire" ? wire_rod_d : rod_d;
-axis_z = rod / 2 - flat_bottom;   // stangen hviler på byggeplata
-eps = 0.01;
+wire_hole_d = wire_d + 0.2;
+rod = pin_style == "wire" ? max(wire_rod_d, wire_hole_d + 2.4) : rod_d;
+// Stang og tapper skal hvile på byggeplata: senk aksen så den tynneste delen også flates litt av
+flat = pin_style == "printed" ? max(flat_bottom, (rod - pin_d) / 2 + pin_flat) : flat_bottom;
+axis_z = rod / 2 - flat;
+// I wire-varianten går stangen ut til der kragene ellers ville sluttet, så klaffen ikke glir sideveis
+ext = pin_style == "wire" ? pin_collar_w : 0;
 
 assert(plate_t > 0 && plate_t <= rod, "plate_t må være mellom 0 og stangdiameteren");
 assert(pin_style != "wire" || axis_z - wire_hole_d / 2 >= 0.8,
@@ -140,7 +145,7 @@ module flap() {
         difference() {
             union() {
                 half_disc(R, plate_t);
-                along_axis(rod, -R, R);
+                along_axis(rod, -R - ext, R + ext);
                 if (pin_style == "printed") {
                     pin(-1);
                     pin(1);
@@ -149,12 +154,11 @@ module flap() {
                 if (center_tab) center_knob();
             }
             if (pin_style == "wire")
-                teardrop_along_axis(wire_hole_d, -R - 1, R + 1);
+                teardrop_along_axis(wire_hole_d, -R - ext - 1, R + ext + 1);
         }
         // flat underside: alt under Z=0 kuttes bort
         translate([-R - pin_len - 1, -R, 0]) cube([2 * (R + pin_len + 1), 2 * R + 1, 50]);
     }
 }
 
-if (mirror_part) mirror([1, 0, 0]) flap();
-else flap();
+flap();
